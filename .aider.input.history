@@ -1,0 +1,109 @@
+
+# 2026-10-05 14:37:49.577284
++/add index.php
+
+# 2026-10-05 14:48:34.489400
++/drop index.php
+
+# 2026-10-05 14:48:45.332377
++/add lib/nuevas.php
+
+# 2026-10-05 14:49:04.758635
++Y
+
+# 2026-10-05 14:56:43.917054
++En lib/nuevas.php crea la función PHP fn_ver_mesas($conn) con el mismo estilo de lib/restaurante.php. Debe ejecutar con procesar_query la consulta "SELECT id, sillas FROM mesas ORDER BY id" y devolver un string HTML que empiece con fn_boton_menu_principal() seguido de una tabla <table> con columnas Mesa y Sillas. El archivo debe empezar con <?php y terminar con ?>. /no_think
+
+# 2026-10-05 14:58:54.710258
++El código está mal: no uses $conn->query ni fetch_assoc, eso es MySQL. Este proyecto usa PostgreSQL. Usa $resultado = procesar_query($sentencia, $conn); y recorre los datos con foreach ($resultado->datos as $mesa), igual que fn_desplegar_menu en lib/restaurante.php. /no_think
+
+# 2026-10-05 15:00:38.993819
++Todavía hay errores. 1) Reemplaza el while por: foreach ($resultado->datos as $mesa) { ... } y deja el mismo contenido dentro. 2) Borra completamente el bloque if (!$resultado) { ... } porque $conn->error no existe en PostgreSQL. No cambies nada más. /no_think
+
+# 2026-10-05 15:06:52.864254
++/drop lib/nuevas.php
+
+# 2026-10-05 15:07:00.030018
++/add lib/restaurante.php
+
+# 2026-10-05 15:07:06.931606
++En la función fn_menu_opciones de lib/restaurante.php agrega un tercer botón "Ver Mesas" al lado de los otros dos. Crea la variable $scr_mesas = "window.open('?opcion=ver_mesas', '_top');"; junto a $scr_menu y $scr_pedido, y agrega <button onClick=\"$scr_mesas\">Ver Mesas</button> después del botón Realizar Pedido. NO cambies ni borres ninguna otra función ni comentario del archivo. /no_think
+
+# 2026-10-05 15:14:19.115664
++/exit
+
+# 2026-10-05 15:15:28.256202
++Y
+
+# 2026-10-05 15:15:41.201996
++/read-only lib/libreria.php lib/restaurante.php
++/add lib/nuevas.php
+
+# 2026-10-05 15:16:03.597938
++/drop lib/nuevas.php
+
+# 2026-10-05 15:16:08.060076
++/add lib/nuevas.php
+
+# 2026-10-05 15:23:43.554888
++Agrega una nueva función fn_buscar_platos($conn) al final de lib/nuevas.php.
++
++REGLAS OBLIGATORIAS:
++1. NO borres ni modifiques la función fn_ver_mesas, debe quedar exactamente igual.
++2. El archivo debe empezar con <?php y terminar con ?>.
++3. Este proyecto usa PostgreSQL. NO uses $conn->query, fetch_assoc, while, mysqli ni $conn->error.
++4. Para consultar usa SOLO: $resultado = procesar_query($sentencia, $conn); y recorre con foreach ($resultado->datos as $plato).
++5. NO definas fn_boton_menu_principal ni procesar_query, ya existen en otros archivos. Solo llámalas.
++6. Solo modifica lib/nuevas.php.
++
++LO QUE DEBE HACER fn_buscar_platos:
++- Empieza con $html = fn_boton_menu_principal();
++- Si NO existe $_REQUEST['precio_max'], agrega a $html un formulario <form method='get'> con <input type='hidden' name='opcion' value='buscar_platos'>, un <input type='number' name='precio_max'> y un <button type='submit'>Buscar</button>.
++- Si SÍ existe, haz $precio = intval($_REQUEST['precio_max']); y $sentencia = "SELECT nombre, descripcion, precio FROM platos WHERE precio <= $precio ORDER BY precio"; luego agrega a $html una tabla <table> con columnas Nombre, Descripcion y Precio, con una fila por cada $plato.
++- Al final return $html;
+
+# 2026-10-05 15:30:02.519461
++Modifica SOLO la función fn_buscar_platos en lib/nuevas.php para que la página explique mejor lo que hace.
++
++REGLAS OBLIGATORIAS:
++1. NO borres ni modifiques fn_ver_mesas.
++2. NO cambies el nombre de la función fn_buscar_platos ni el value='buscar_platos' del input hidden.
++3. El archivo debe empezar con <?php y terminar con ?>.
++4. NO uses $conn->query, fetch_assoc, while, mysqli ni $conn->error. Mantén procesar_query y foreach como están.
++5. NO definas fn_boton_menu_principal ni procesar_query.
++
++CAMBIOS:
++- Justo después de $html = fn_boton_menu_principal(); agrega $html .= "<h2>Platos con precio máximo</h2>";
++- Antes del input precio_max agrega el texto <label>Muestra los platos que cuestan igual o menos que: $</label>
++- Cambia el texto del botón de "Buscar" a "Ver platos".
++- Cuando se muestren los resultados, antes de la tabla agrega <p>Platos de hasta $PRECIO</p> usando la variable $precio.
++- Si no hay resultados ($resultado->cantidad == 0), muestra "No hay platos con ese precio o menos" en vez de la tabla.
++- El resto de la función queda igual.
+
+# 2026-10-05 15:37:34.177989
++Crea el archivo lib/agregar.php con UNA sola función: fn_agregar_plato($conn).
++
++REGLAS OBLIGATORIAS:
++1. Solo escribe en lib/agregar.php. NO modifiques ningún otro archivo.
++2. El archivo debe empezar con <?php y terminar con ?>.
++3. Este proyecto usa PostgreSQL. NO uses $conn->query, fetch_assoc, while, mysqli, mysql_ ni $conn->error.
++4. Para consultas SELECT usa SOLO: $resultado = procesar_query($sentencia, $conn); y recorre con foreach ($resultado->datos as $fila). Sigue el mismo estilo de lib/nuevas.php.
++5. NO definas fn_boton_menu_principal, procesar_query, fn_ver_mesas ni fn_buscar_platos. Ya existen en otros archivos.
++
++LO QUE DEBE HACER fn_agregar_plato:
++- Empieza con $html = fn_boton_menu_principal(); y luego $html .= "<h2>Agregar un plato nuevo al menú</h2>";
++- Si NO existe $_REQUEST['nombre'], muestra un formulario <form method='post'> con:
++  <input type='hidden' name='opcion' value='agregar_plato'>
++  <label>Nombre:</label> <input type='text' name='nombre' required>
++  <label>Descripción:</label> <input type='text' name='descripcion'>
++  <label>Precio:</label> <input type='number' name='precio' required>
++  <label>Tipo:</label> un <select name='tipo_id'> con un <option value='ID'>NOMBRE</option> por cada fila de procesar_query("SELECT id, nombre FROM tipos ORDER BY id", $conn)
++  <button type='submit'>Guardar plato</button>
++- Si SÍ existe $_REQUEST['nombre'], inserta con:
++  $res = pg_query_params($conn, 'INSERT INTO platos (nombre, descripcion, precio, tipo_id) VALUES ($1, $2, $3, $4)', array($_REQUEST['nombre'], $_REQUEST['descripcion'], intval($_REQUEST['precio']), intval($_REQUEST['tipo_id'])));
++  Si $res es verdadero, muestra <p>Plato agregado correctamente</p> y un <a href='?opcion=desplegar_menu'>Ver el menú</a>.
++  Si $res es falso, muestra <p>Error al guardar: </p> seguido de pg_last_error($conn).
++- Al final return $html;
+
+# 2026-10-05 15:40:58.354134
++y

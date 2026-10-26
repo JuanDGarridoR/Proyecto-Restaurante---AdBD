@@ -1,0 +1,270 @@
+@font-face {
+    font-family:        fuente_delgada;
+    font-style:         normal;
+    font-weight:        normal;
+    src:                url('../ttf/Antonio-Regular.ttf');
+}
+@font-face {
+    font-family:        fuente_regular;
+    font-style:         normal;
+    font-weight:        normal;
+    src:                local('Trebuchet MS');
+}
+@font-face {
+    font-family:        fuente_decorativa;
+    font-style:         normal;
+    font-weight:        normal;
+    src:                url('../ttf/dreamporp.ttf');
+}
+body {
+    background:         cyan;
+    padding:            15%;
+    padding-top:        10px;
+    text-align:         center;
+    background:         blue;
+    background:         linear-gradient( to top right
+                                       , navy
+                                       , blue
+                                       , cyan
+                                       ); /* https://css-tricks.com/css3-gradients/ */
+    font-family:        fuente_decorativa;
+}
+body * {
+    font-family:        fuente_regular;
+}
+a, input[type=submit] {
+    display:            inline-block;
+    background:         white;
+    color:              navy;
+    font-size:          1.5em;
+    margin:             15px;
+    border:             3px solid black;
+    padding:            15px;
+    border-radius:      5px;
+    text-decoration:    none;
+}
+a.PESTANHA {
+    background:         navy;
+    color:              cyan;
+    font-size:          1em;
+    border:             1px solid black;
+    border:             0px;
+    border-bottom:      1px solid navy;
+    border-radius:      15px 15px 0px 0px;
+    margin-bottom:      0px;
+}
+a.ACTIVA {
+    background:         white;
+    color:              navy;
+    border-bottom:      0px;
+    font-size:          1.3em;
+}
+nav {
+}
+header {
+    background:         cyan;
+    border-radius:      15px 15px 0px 0px;
+    padding:            15px;
+    font-size:          2em;
+}
+main {
+    background:         white;
+    border:             0px;
+    border-radius:      0px 0px 15px 15px;
+    padding:            25px;
+}
+footer * {
+    display:            inline-block;
+    background:         white;
+    margin:             5px;
+    margin-top:         0px;
+    border-radius:      0px 0px 5px 5px;
+    padding:            5px;
+}
+.MENU_OPCIONES button {
+	height:		100px;
+	width:		100px;
+	margin:		10px;
+	font-size:	large;
+}
+.SECCION {
+	display:	inline-block;
+	margin:		10px;
+	border:		3px solid grey;
+	border-radius:	10px;
+	padding:	5px;
+	vertical-align: top;
+}
+.PLATO {
+	text-align:	center;
+	border-bottom:	1px dotted black;
+}
+.PLATO .TIPO {
+	display: inline-block;
+	text-align:	left;
+	width:		145px;
+}
+.PLATO .NOMBRE {
+	display: inline-block;
+	text-align:	left;
+	width:		145px;
+    vertical-align: middle;
+}
+.PLATO .DESCRIPCION {
+	display: inline-block;
+	text-align:	left;
+	width:		145px;
+	font-size:	small;
+    vertical-align: middle;
+}
+.PLATO .PRECIO {
+	font-size:   	1.2em;
+    vertical-align: middle;
+    margin-left:    35px;
+}
+
+/*------------------------------------------------------------------*/
+/* Tablas, formularios y botones de las páginas de gestión          */
+/*------------------------------------------------------------------*/
+.MENU_OPCIONES button {
+	overflow-wrap:	break-word;
+	hyphens:	auto;
+}
+main article {
+	overflow-x:	auto;
+}
+main table {
+	margin:		15px auto;
+	border-collapse: separate;
+	border-spacing:	0;
+	border:		3px solid grey;
+	border-radius:	10px;
+	overflow:	hidden;
+}
+main th {
+	background:	navy;
+	color:		cyan;
+	padding:	8px 12px;
+}
+main td {
+	padding:	6px 12px;
+	border-bottom:	1px dotted black;
+	vertical-align:	middle;
+}
+main tr:nth-child(odd) td {
+	background:	#e6ffff;
+}
+main td input[type=number] {
+	width:		70px;
+}
+main form {
+	display:	grid;
+	grid-template-columns: max-content minmax(180px, 300px);
+	justify-content: center;
+	align-items:	center;
+	gap:		8px 12px;
+	margin:		15px auto;
+}
+main form label {
+	text-align:	right;
+}
+main form button,
+main form table {
+	grid-column:	1 / -1;
+	justify-self:	center;
+}
+main input,
+main select {
+	padding:	6px;
+	border:		1px solid navy;
+	border-radius:	5px;
+	font-size:	1em;
+	background:	white;
+}
+main button:not(.MENU_OPCIONES button) {
+	background:	white;
+	color:		navy;
+	border:		2px solid navy;
+	border-radius:	5px;
+	padding:	6px 14px;
+	margin:		5px;
+	font-size:	1em;
+	cursor:		pointer;
+}
+main button:not(.MENU_OPCIONES button):hover {
+	background:	navy;
+	color:		cyan;
+}
+main input,
+main select,
+main img {
+	max-width:	100%;
+	box-sizing:	border-box;
+}
+
+/*------------------------------------------------------------------*/
+/* Pantallas medianas y pequeñas                                    */
+/*------------------------------------------------------------------*/
+@media (max-width: 900px) {
+	body {
+		padding:	3%;
+		padding-top:	10px;
+	}
+}
+@media (max-width: 700px) {
+	header {
+		font-size:	1.5em;
+	}
+	main {
+		padding:	12px;
+	}
+	main form {
+		grid-template-columns: 1fr;
+	}
+	main form label {
+		text-align:	left;
+	}
+	main form input,
+	main form select {
+		width:		100%;
+	}
+	main td input[type=number] {
+		width:		70px;
+	}
+	main th,
+	main td {
+		padding:	5px 6px;
+	}
+	.MENU_OPCIONES button {
+		width:		90px;
+		height:		90px;
+		margin:		5px;
+		font-size:	medium;
+	}
+	.SECCION {
+		display:	block;
+		margin:		10px 0;
+	}
+	.PLATO .NOMBRE,
+	.PLATO .DESCRIPCION {
+		display:	block;
+		width:		auto;
+		text-align:	center;
+	}
+	.PLATO .PRECIO {
+		margin-left:	0;
+	}
+	a, input[type=submit] {
+		font-size:	1.1em;
+		margin:		8px;
+		padding:	10px;
+	}
+	footer * {
+		display:	block;
+		margin:		0;
+		border-radius:	0;
+	}
+	footer *:last-child {
+		border-radius:	0px 0px 5px 5px;
+	}
+}
