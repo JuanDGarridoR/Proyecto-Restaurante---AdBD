@@ -292,16 +292,33 @@ main img {
 /* Sesión, tablero por rol, mensajes y notificaciones               */
 /*------------------------------------------------------------------*/
 .BARRA_USUARIO {
-	font-size:	0.45em;
+	font-size:	1rem;
 	margin-top:	8px;
 }
-.BARRA_USUARIO a,
 main a.FILTRO {
 	font-size:	1em;
 	margin:		0 4px;
 	padding:	3px 10px;
 	border:		1px solid navy;
 	border-radius:	5px;
+}
+/* Cambiar clave / Salir: mismo tamaño que los demás botones de la app
+   (medidas en rem para no heredar el tamaño grande del encabezado) */
+header .BARRA_USUARIO a {
+	display:	inline-block;
+	vertical-align:	middle;
+	background:	white;
+	color:		navy;
+	font-size:	1rem;
+	line-height:	normal;
+	margin:		0 4px;
+	padding:	6px 14px;
+	border:		2px solid navy;
+	border-radius:	5px;
+}
+header .BARRA_USUARIO a:hover {
+	background:	navy;
+	color:		cyan;
 }
 .BARRA_USUARIO span {
 	margin-right:	10px;
