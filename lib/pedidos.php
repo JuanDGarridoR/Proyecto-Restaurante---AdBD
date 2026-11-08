@@ -312,6 +312,7 @@ function fn_pedidos($conn, $mensaje = "")
     $html = fn_boton_menu_principal() . "<button onClick=\"$scr_nuevo\">Realizar pedido</button>";
     $html .= "<h2>Pedidos registrados</h2>";
     $html .= $mensaje;
+    $html .= notificaciones_widget($conn, 'Mesero');
 
     $pedidos = procesar_query("
         SELECT PED.id

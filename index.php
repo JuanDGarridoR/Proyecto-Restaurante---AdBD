@@ -11,6 +11,8 @@ require_once("lib/nuevas.php");
 require_once("lib/agregar.php");
 require_once("lib/reservaciones.php");
 require_once("lib/pedidos.php");
+require_once("lib/cocina.php");
+require_once("lib/notificaciones.php");
 
 //------------------------------------------------------------
 $conn = pg_conectar($host, $dbname, $user);

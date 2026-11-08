@@ -271,6 +271,7 @@ function fn_reservaciones($conn, $mensaje = "", $formulario = null)
     $scr_mesas = "window.open('?opcion=ver_mesas', '_top');";
     return fn_boton_menu_principal()
          . "<button onClick=\"$scr_mesas\">Gestión de mesas</button>"
+         . notificaciones_widget($conn, 'Maitre')
          . reserva_seccion($conn, $mensaje, $formulario);
 }
 

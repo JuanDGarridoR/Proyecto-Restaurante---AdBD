@@ -32,6 +32,9 @@ function fn_menu_opciones($conn)
     $scr_agregar = "window.open('?opcion=agregar_plato', '_top');";
     $scr_reservas = "window.open('?opcion=reservaciones', '_top');";
     $scr_pedidos = "window.open('?opcion=pedidos', '_top');";
+    $scr_cocina = "window.open('?opcion=cocina', '_top');";
+    $scr_auth_cocina = "window.open('?opcion=autorizaciones_cocina', '_top');";
+    $scr_notif = "window.open('?opcion=notificaciones', '_top');";
     $retorno = "<h1>Opciones del programa</h1>"
              . "<div class='MENU_OPCIONES'>"
              . "<button onClick=\"$scr_menu\">Desplegar Menu</button>"
@@ -41,6 +44,9 @@ function fn_menu_opciones($conn)
              . "<button onClick=\"$scr_agregar\">Agregar Plato</button>"
              . "<button onClick=\"$scr_reservas\">Gestionar Reservaciones</button>"
              . "<button onClick=\"$scr_pedidos\">Ver Pedidos</button>"
+             . "<button onClick=\"$scr_cocina\">Cocina</button>"
+             . "<button onClick=\"$scr_auth_cocina\">Autorizaciones Cocina</button>"
+             . "<button onClick=\"$scr_notif\">Notificaciones</button>"
              . "</div>"
              ;
     return $retorno;
