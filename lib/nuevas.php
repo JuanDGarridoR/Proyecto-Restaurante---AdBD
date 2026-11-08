@@ -84,7 +84,7 @@ function fn_agregar_mesa($conn) {
     if ($res)
         return fn_ver_mesas($conn, "<p>Mesa $mesa_id registrada correctamente con $sillas sillas.</p>");
 
-    return fn_ver_mesas($conn, "<p>Error al guardar la mesa: " . pg_last_error($conn) . "</p>");
+    return fn_ver_mesas($conn, "<p>Error al guardar la mesa: " . error_bd($conn) . "</p>");
 }
 
 function fn_editar_mesa($conn) {
@@ -100,7 +100,7 @@ function fn_editar_mesa($conn) {
             $res = @pg_query_params($conn, 'UPDATE mesas SET sillas = $1 WHERE id = $2', array($sillas, $mesa_id));
             if ($res)
                 return fn_ver_mesas($conn, "<p>Mesa $mesa_id actualizada correctamente: ahora tiene $sillas sillas.</p>");
-            $mensaje = "<p>Error al actualizar la mesa: " . pg_last_error($conn) . "</p>";
+            $mensaje = "<p>Error al actualizar la mesa: " . error_bd($conn) . "</p>";
         }
     } else
         $mensaje = "";
@@ -145,7 +145,7 @@ function fn_eliminar_mesa($conn) {
     if ($res)
         return fn_ver_mesas($conn, "<p>Mesa $mesa_id eliminada correctamente.</p>");
 
-    return fn_ver_mesas($conn, "<p>Error al eliminar la mesa: " . pg_last_error($conn) . "</p>");
+    return fn_ver_mesas($conn, "<p>Error al eliminar la mesa: " . error_bd($conn) . "</p>");
 }
 
 function fn_buscar_platos($conn) {
@@ -161,7 +161,7 @@ function fn_buscar_platos($conn) {
                . "</form>";
     } else {
         $precio = intval($_REQUEST['precio_max']);
-        $sentencia = "SELECT nombre, descripcion, precio FROM platos WHERE precio <= $precio ORDER BY precio";
+        $sentencia = "SELECT nombre, descripcion, precio FROM platos WHERE activo AND precio <= $precio ORDER BY precio";
         $resultado = procesar_query($sentencia, $conn);
 
         $html .= "<p>Platos de hasta $" . $precio . "</p>";

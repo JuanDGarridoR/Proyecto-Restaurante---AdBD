@@ -11,6 +11,11 @@ define('RESERVA_DURACION', '2 hours');
 define('RESERVA_ACTIVA', 1);
 define('RESERVA_CANCELADA', 0);
 
+function reserva_nombre_estado($estado) {
+    $nombres = array(0 => 'Cancelada', 1 => 'Activa', 2 => 'Cumplida', 3 => 'No asistió');
+    return isset($nombres[$estado]) ? $nombres[$estado] : "Estado $estado";
+}
+
 /*------------------------------------------------------------------*/
 /**
  * @brief Ejecuta una sentencia SQL con parámetros y devuelve sus filas.
@@ -39,11 +44,20 @@ function reserva_transaccion_iniciar($conn)
     return $anidada;
 }
 
+/**
+ * @brief Confirma o deshace la transacción iniciada con reserva_transaccion_iniciar().
+ * @return bool false si la confirmación falló (p. ej. por un trigger diferible).
+ */
 function reserva_transaccion_terminar($conn, $anidada, $confirmar) {
     if ($anidada)
-        pg_query($conn, $confirmar ? "RELEASE SAVEPOINT reserva" : "ROLLBACK TO SAVEPOINT reserva");
+        $res = @pg_query($conn, $confirmar ? "RELEASE SAVEPOINT reserva" : "ROLLBACK TO SAVEPOINT reserva");
     else
-        pg_query($conn, $confirmar ? "COMMIT" : "ROLLBACK");
+        $res = @pg_query($conn, $confirmar ? "COMMIT" : "ROLLBACK");
+    if ($res && $confirmar && !$anidada && pg_transaction_status($conn) != PGSQL_TRANSACTION_IDLE)
+        $res = false;
+    if (!$res && $confirmar)
+        @pg_query($conn, $anidada ? "ROLLBACK TO SAVEPOINT reserva" : "ROLLBACK");
+    return (bool) $res;
 }
 
 /*------------------------------------------------------------------*/
@@ -204,10 +218,16 @@ function reserva_guardar($conn, $datos, &$reservacion_id)
             }
         }
         if (!$ok)
-            $error = "Error al guardar la reservación: " . pg_last_error($conn);
+            $error = "Error al guardar la reservación: " . error_bd($conn);
     }
 
-    reserva_transaccion_terminar($conn, $anidada, $error == "");
+    // La base de datos vuelve a validar cruces, sillas y cupo con triggers
+    // diferibles; se fuerzan aquí para mostrar su mensaje antes de confirmar.
+    if ($error == "" && !@pg_query($conn, "SET CONSTRAINTS ALL IMMEDIATE"))
+        $error = "La base de datos rechazó la reservación: " . error_bd($conn);
+
+    if (!reserva_transaccion_terminar($conn, $anidada, $error == "") && $error == "")
+        $error = "La base de datos rechazó la reservación: " . error_bd($conn);
     return $error;
 }
 
@@ -228,7 +248,7 @@ function reserva_formulario($conn, $opcion, $valores, $boton)
         $html .= "<input type='hidden' name='reservacion_id' value='" . $valor('reservacion_id') . "'>";
 
     $html .= "<label>Cliente:</label> <select name='cliente_id' required><option value=''></option>";
-    $clientes = procesar_query("SELECT id, nombre FROM usuarios ORDER BY nombre", $conn);
+    $clientes = procesar_query("SELECT id, nombre FROM usuarios WHERE activo ORDER BY nombre", $conn);
     foreach ($clientes->datos as $cliente) {
         $marcado = ($valor('cliente_id') == $cliente['id']) ? " selected" : "";
         $html .= "<option value='" . $cliente['id'] . "'$marcado>" . htmlspecialchars($cliente['nombre']) . "</option>";
@@ -268,11 +288,62 @@ function reserva_mensajes($mensajes) {
 function fn_reservaciones($conn, $mensaje = "", $formulario = null)
 /*--------------------------------------------------------------------*/
 {
-    $scr_mesas = "window.open('?opcion=ver_mesas', '_top');";
-    return fn_boton_menu_principal()
-         . "<button onClick=\"$scr_mesas\">Gestión de mesas</button>"
+    $scr_cliente = "window.open('?opcion=registrar_cliente&volver=reservaciones', '_top');";
+    $botones = fn_boton_menu_principal()
+             . "<button onClick=\"$scr_cliente\">Registrar cliente</button>";
+    if (sesion_es_admin())
+        $botones .= "<button onClick=\"window.open('?opcion=ver_mesas', '_top');\">Gestión de mesas</button>";
+    return $botones
          . notificaciones_widget($conn, 'Maitre')
+         . reserva_disponibilidad($conn)
          . reserva_seccion($conn, $mensaje, $formulario);
+}
+
+/*------------------------------------------------------------------*/
+/**
+ * @brief Consulta de disponibilidad: mesas libres para una fecha, hora y
+ *        número de personas (función fn_mesas_disponibles de la BD) y
+ *        ocupación del restaurante frente al cupo.
+ */
+function reserva_disponibilidad($conn)
+/*--------------------------------------------------------------------*/
+{
+    $fecha = isset($_REQUEST['d_fecha']) ? trim($_REQUEST['d_fecha']) : date('Y-m-d');
+    $hora = isset($_REQUEST['d_hora']) ? trim($_REQUEST['d_hora']) : "19:00";
+    $personas = mesa_validar_entero('d_personas', 1, MESAS_MAX_SILLAS);
+    if ($personas === null)
+        $personas = 2;
+
+    $html = "<details class='DISPONIBILIDAD'" . (isset($_REQUEST['d_fecha']) ? " open" : "") . ">"
+          . "<summary>Consultar mesas disponibles</summary>"
+          . "<form method='get' action='./'>"
+          . "<input type='hidden' name='opcion' value='reservaciones'>"
+          . "<label>Fecha:</label> <input type='date' name='d_fecha' value='" . htmlspecialchars($fecha, ENT_QUOTES) . "' required>"
+          . "<label>Hora:</label> <input type='time' name='d_hora' value='" . htmlspecialchars($hora, ENT_QUOTES) . "' required>"
+          . "<label>Personas:</label> <input type='number' name='d_personas' min='1' max='" . MESAS_MAX_SILLAS . "' value='$personas' required>"
+          . "<button type='submit'>Consultar</button>"
+          . "</form>";
+
+    $inicio = DateTime::createFromFormat('!Y-m-d H:i', "$fecha $hora");
+    if (isset($_REQUEST['d_fecha']) && $inicio) {
+        $momento = $inicio->format('Y-m-d H:i:00');
+        $mesas = reserva_consulta($conn, 'SELECT mesa_id, sillas FROM fn_mesas_disponibles($1, $2)', array($momento, $personas));
+        $ocupacion = reserva_consulta($conn, 'SELECT fn_ocupacion($1) AS personas, fn_cupo_total() AS cupo', array($momento));
+        $html .= "<p>A las " . $inicio->format('H:i') . " del " . $inicio->format('Y-m-d') . " hay "
+               . $ocupacion[0]['personas'] . " personas con reserva de un cupo de " . $ocupacion[0]['cupo'] . ".</p>";
+        if (!$mesas) {
+            $html .= mensaje_error("No hay mesas libres con $personas o más sillas entre las " . $inicio->format('H:i')
+                                   . " y las " . $inicio->modify('+2 hours')->format('H:i') . ".");
+        } else {
+            $html .= "<p>Mesas libres durante 2 horas (de menor a mayor tamaño):</p><div class='MENU_OPCIONES'>";
+            foreach ($mesas as $mesa) {
+                $url = "?opcion=reservaciones&mesa_id=" . $mesa['mesa_id'] . "&cantidad=$personas&fecha=$fecha&hora=" . urlencode($hora) . "#formulario";
+                $html .= "<button onClick=\"window.open('$url', '_top');\">Mesa " . $mesa['mesa_id'] . " (" . $mesa['sillas'] . " sillas)</button>";
+            }
+            $html .= "</div><p><small>Elija una mesa para llenar el formulario de reservación.</small></p>";
+        }
+    }
+    return $html . "</details>";
 }
 
 /*------------------------------------------------------------------*/
@@ -282,6 +353,14 @@ function fn_reservaciones($conn, $mensaje = "", $formulario = null)
 function reserva_seccion($conn, $mensaje, $formulario)
 /*--------------------------------------------------------------------*/
 {
+    $ver = (isset($_REQUEST['ver']) && in_array($_REQUEST['ver'], array('hoy', 'anteriores'))) ? $_REQUEST['ver'] : 'proximas';
+    $filtros = array(
+        'proximas'   => array("WHERE HOR.inicio + HOR.duracion >= LOCALTIMESTAMP", "ASC"),
+        'hoy'        => array("WHERE HOR.inicio::date = CURRENT_DATE", "ASC"),
+        'anteriores' => array("WHERE HOR.inicio + HOR.duracion < LOCALTIMESTAMP", "DESC"),
+    );
+    list($filtro_sql, $orden) = $filtros[$ver];
+
     $sentencia = "
         SELECT RES.id
              , USR.nombre AS cliente
@@ -293,12 +372,18 @@ function reserva_seccion($conn, $mensaje, $formulario)
         FROM reservaciones AS RES
         LEFT JOIN usuarios AS USR ON USR.id = RES.cliente_id
         JOIN horarios AS HOR ON HOR.reservacion_id = RES.id
-        ORDER BY HOR.inicio DESC, RES.id
+        $filtro_sql
+        ORDER BY HOR.inicio $orden, RES.id
+        LIMIT 300
         ";
     $reservas = reserva_consulta($conn, $sentencia);
 
     $html = "<h2>Gestión de reservaciones</h2>";
     $html .= $mensaje;
+    $html .= "<p>";
+    foreach (array('proximas' => 'Próximas', 'hoy' => 'Hoy', 'anteriores' => 'Anteriores') as $clave => $texto)
+        $html .= ($clave == $ver) ? "<strong>$texto</strong> " : "<a class='FILTRO' href='?opcion=reservaciones&ver=$clave'>$texto</a> ";
+    $html .= "</p>";
     if ($reservas === null)
         return $html . reserva_mensajes(array("No se pudieron consultar las reservaciones: " . pg_last_error($conn)));
 
@@ -310,7 +395,7 @@ function reserva_seccion($conn, $mensaje, $formulario)
 
     $html .= "<table><tr><th>Reservación</th><th>Cliente</th><th>Mesa</th><th>Personas</th><th>Inicio</th><th>Fin</th><th>Estado</th><th>Acciones</th></tr>";
     foreach ($reservas as $reserva) {
-        $activa = ($reserva['estado'] != RESERVA_CANCELADA);
+        $activa = ($reserva['estado'] == RESERVA_ACTIVA);
         $acciones = "";
         if ($activa) {
             $scr_editar = "window.open('?opcion=editar_reservacion&reservacion_id=" . $reserva['id'] . "', '_top');";
@@ -323,12 +408,12 @@ function reserva_seccion($conn, $mensaje, $formulario)
         }
         $html .= "<tr><td>" . $reserva['id'] . "</td><td>" . htmlspecialchars($reserva['cliente']) . "</td><td>" . $reserva['mesa_id']
                . "</td><td>" . $reserva['cantidad'] . "</td><td>" . $reserva['inicio'] . "</td><td>" . $reserva['fin']
-               . "</td><td>" . ($activa ? "Activa" : "Cancelada") . "</td><td>$acciones</td></tr>";
+               . "</td><td>" . reserva_nombre_estado($reserva['estado']) . "</td><td>$acciones</td></tr>";
     }
     $html .= "</table>";
 
     if ($formulario === null)
-        $formulario = "<h2>Registrar una reservación</h2>"
+        $formulario = "<h2 id='formulario'>Registrar una reservación</h2>"
                     . reserva_formulario($conn, 'agregar_reservacion', $_REQUEST, 'Guardar reservación');
     $html .= $formulario;
 
@@ -364,8 +449,8 @@ function fn_editar_reservacion($conn) {
         WHERE RES.id = $1", array($reservacion_id));
     if ($actual === null || count($actual) == 0)
         return fn_reservaciones($conn, reserva_mensajes(array("Error: la reservación indicada no existe.")));
-    if ($actual[0]['estado'] == RESERVA_CANCELADA)
-        return fn_reservaciones($conn, reserva_mensajes(array("Error: la reservación $reservacion_id está cancelada y no se puede modificar.")));
+    if ($actual[0]['estado'] != RESERVA_ACTIVA)
+        return fn_reservaciones($conn, reserva_mensajes(array("Error: la reservación $reservacion_id está «" . reserva_nombre_estado($actual[0]['estado']) . "» y no se puede modificar.")));
 
     $valores = $actual[0];
     $mensaje = "";

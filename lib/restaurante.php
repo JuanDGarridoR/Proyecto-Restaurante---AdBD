@@ -16,39 +16,86 @@ function fn_boton_menu_principal()
 
 /*------------------------------------------------------------------*/
 /**
- * @brief Despliega los botones principales de navegación del programa.
- * @param resource $conexion_bd Recurso de conexión a la base de datos.
- * @return string Fragmento HTML con el menú de navegación.
- * @pre El sistema debe estar cargado y la conexión debe ser válida.
- * @post Permite navegar hacia el menú de platos o el sistema de pedidos.
+ * @brief Tablero principal: muestra una sección por cada rol del usuario
+ *        con las opciones que ese rol puede usar.
+ * @param resource $conn Recurso de conexión a la base de datos.
+ * @return string Fragmento HTML con el menú de navegación por rol.
+ * @pre Debe haber un usuario autenticado.
+ * @post El administrador ve las secciones de todos los roles.
  */
 function fn_menu_opciones($conn)
 /*--------------------------------------------------------------------*/
 {
-    $scr_menu = "window.open('?opcion=desplegar_menu', '_top');";
-    $scr_pedido = "window.open('?opcion=realizar_pedidos', '_top');";
-    $scr_mesas = "window.open('?opcion=ver_mesas', '_top');";
-    $scr_buscar = "window.open('?opcion=buscar_platos', '_top');";
-    $scr_agregar = "window.open('?opcion=agregar_plato', '_top');";
-    $scr_reservas = "window.open('?opcion=reservaciones', '_top');";
-    $scr_pedidos = "window.open('?opcion=pedidos', '_top');";
-    $scr_cocina = "window.open('?opcion=cocina', '_top');";
-    $scr_auth_cocina = "window.open('?opcion=autorizaciones_cocina', '_top');";
-    $scr_notif = "window.open('?opcion=notificaciones', '_top');";
-    $retorno = "<h1>Opciones del programa</h1>"
-             . "<div class='MENU_OPCIONES'>"
-             . "<button onClick=\"$scr_menu\">Desplegar Menu</button>"
-             . "<button onClick=\"$scr_pedido\">Realizar Pedido</button>"
-             . "<button onClick=\"$scr_mesas\">Ver Mesas</button>"
-             . "<button onClick=\"$scr_buscar\">Platos por Precio</button>"
-             . "<button onClick=\"$scr_agregar\">Agregar Plato</button>"
-             . "<button onClick=\"$scr_reservas\">Gestionar Reservaciones</button>"
-             . "<button onClick=\"$scr_pedidos\">Ver Pedidos</button>"
-             . "<button onClick=\"$scr_cocina\">Cocina</button>"
-             . "<button onClick=\"$scr_auth_cocina\">Autorizaciones Cocina</button>"
-             . "<button onClick=\"$scr_notif\">Notificaciones</button>"
-             . "</div>"
-             ;
+    $secciones = array(
+        'Administrador' => array(
+            'descripcion' => 'Información del restaurante, empleados, cocina y reportes',
+            'opciones' => array(
+                'ver_mesas' => 'Mesas y cupo',
+                'gestionar_menu' => 'Menú del restaurante',
+                'empleados' => 'Empleados y usuarios',
+                'autorizaciones_cocina' => 'Platos autorizados a cocineros',
+                'reportes' => 'Reportes y estadísticas',
+                'historial_clientes' => 'Historial de clientes',
+            )),
+        'Maitre' => array(
+            'descripcion' => 'Reservaciones y asignación de mesas',
+            'opciones' => array(
+                'reservaciones' => 'Gestionar reservaciones',
+                'registrar_cliente&volver=reservaciones' => 'Registrar cliente',
+                'notificaciones' => 'Notificaciones',
+                'historial_clientes' => 'Historial de clientes',
+            )),
+        'Mesero' => array(
+            'descripcion' => 'Pedidos de las mesas y entregas',
+            'opciones' => array(
+                'realizar_pedidos' => 'Registrar pedido',
+                'pedidos' => 'Pedidos y entregas',
+                'registrar_cliente&volver=realizar_pedidos' => 'Registrar cliente',
+                'notificaciones' => 'Notificaciones',
+            )),
+        'Cocinero' => array(
+            'descripcion' => 'Platos por preparar (los más demorados primero)',
+            'opciones' => array(
+                'cocina' => 'Mi cola de preparación',
+            )),
+        'Gerente' => array(
+            'descripcion' => 'Indicadores del negocio',
+            'opciones' => array(
+                'reportes' => 'Reportes y estadísticas',
+                'historial_clientes' => 'Historial de clientes',
+            )),
+    );
+    // El recepcionista trabaja como maitre
+    $alias = array('Recepcionista' => 'Maitre');
+
+    $usuario = sesion_usuario();
+    $mostrar = array();
+    foreach ($usuario['roles'] as $rol) {
+        $rol = isset($alias[$rol]) ? $alias[$rol] : $rol;
+        if (isset($secciones[$rol]))
+            $mostrar[$rol] = true;
+    }
+    if (sesion_es_admin())
+        foreach ($secciones as $rol => $seccion)
+            $mostrar[$rol] = true;
+
+    $retorno = "<h1>Bienvenido(a), " . htmlspecialchars($usuario['nombre']) . "</h1>";
+    $retorno .= "<div class='TABLERO'>";
+    foreach ($secciones as $rol => $seccion) {
+        if (!isset($mostrar[$rol]))
+            continue;
+        $retorno .= "<section class='ROL'><h2>$rol</h2><p>" . $seccion['descripcion'] . "</p><div class='MENU_OPCIONES'>";
+        foreach ($seccion['opciones'] as $opcion => $texto) {
+            $script = "window.open('?opcion=$opcion', '_top');";
+            $retorno .= "<button onClick=\"$script\">$texto</button>";
+        }
+        $retorno .= "</div></section>";
+    }
+    $retorno .= "<section class='ROL'><h2>Consulta</h2><p>Carta del restaurante</p><div class='MENU_OPCIONES'>"
+              . "<button onClick=\"window.open('?opcion=desplegar_menu', '_top');\">Ver la carta</button>"
+              . "<button onClick=\"window.open('?opcion=buscar_platos', '_top');\">Platos por precio</button>"
+              . "</div></section>";
+    $retorno .= "</div>";
     return $retorno;
 }
 
@@ -58,7 +105,7 @@ function fn_menu_opciones($conn)
  * @param resource $conexion_bd Recurso de conexión a la base de datos.
  * @return string Lista HTML (ul) con las secciones y platos del restaurante.
  * @pre Debe existir la tabla platos y tipos con datos íntegros.
- * @post Genera la visualización estructurada del menú.
+ * @post Genera la visualización estructurada del menú (solo platos activos).
  */
 function fn_desplegar_menu($conn)
 /*--------------------------------------------------------------------*/
@@ -68,9 +115,11 @@ function fn_desplegar_menu($conn)
          , platos.nombre
          , tipos.nombre AS tipo
          , descripcion
-         , precio 
+         , precio
+         , EXTRACT(EPOCH FROM tiempo)::int / 60 AS minutos
     FROM platos
     LEFT JOIN tipos ON platos.tipo_id=tipos.id
+    WHERE platos.activo
         ORDER BY tipos.id, platos.nombre
         ;";
     $resultado = procesar_query($sentencia, $conn);
@@ -78,13 +127,13 @@ function fn_desplegar_menu($conn)
     $tipo = "<div class='SECCION'>";
     foreach ($resultado->datos AS $plato) {
     if ($tipo != $plato['tipo']) {
-        $retorno.= "</div><div class='SECCION'><h2>".$plato['tipo']."</h2>";
+        $retorno.= "</div><div class='SECCION'><h2>".htmlspecialchars($plato['tipo'])."</h2>";
         $tipo = $plato['tipo'];
     }
         $retorno.= "<div class='PLATO'>"
-                 .     "<span class='NOMBRE'>".$plato['nombre']."</span>"
-                 .     "<span class='DESCRIPCION'>".$plato['descripcion']."</span>"
-                 .     "<span class='PRECIO'>$".$plato['precio']."</span>"
+                 .     "<span class='NOMBRE'>".htmlspecialchars($plato['nombre'])."</span>"
+                 .     "<span class='DESCRIPCION'>".htmlspecialchars($plato['descripcion'])." (".$plato['minutos']." min)</span>"
+                 .     "<span class='PRECIO'>".pedido_dinero($plato['precio'])."</span>"
                  . "</div>";
     }
     $retorno .= "</div>";
@@ -100,12 +149,18 @@ function fn_desplegar_menu($conn)
  * @pre El parámetro mesa_id en $_REQUEST determina el flujo de la función.
  * @post Facilita la selección de mesa para iniciar un pedido.
  */
-function fn_realizar_pedidos($conn)
+function fn_realizar_pedidos($conn, $mensaje = "")
 /*--------------------------------------------------------------------*/
 {
-    $retorno = fn_boton_menu_principal().pedido_boton_lista()."<br />";
+    $scr_cliente = "window.open('?opcion=registrar_cliente&volver=realizar_pedidos', '_top');";
+    $retorno = fn_boton_menu_principal().pedido_boton_lista()
+             . "<button onClick=\"$scr_cliente\">Registrar cliente</button><br />".$mensaje;
     if (!pedido_modelo_listo($conn))
         return $retorno.pedido_aviso_modelo();
+
+    // Cliente preseleccionado (p. ej. recién registrado)
+    $cliente_id = mesa_validar_entero('cliente_id', 1, 2147483647);
+    $param_cliente = ($cliente_id === null) ? "" : "&cliente_id=$cliente_id";
 
     if (isset($_REQUEST['mesa_id']))
         $accion = "pedido_mesa";
@@ -135,14 +190,16 @@ function fn_realizar_pedidos($conn)
 
         $botones_mesas = "";
         foreach ($resultado->datos as $mesa) {
-            $script = "window.open('?opcion=realizar_pedidos&mesa_id=".$mesa['id']."', '_top');";
-            $botones_mesas.= "<button onClick=\"$script\">".$mesa['id']." - ".$mesa['nombre_usr']."</button>";
+            $script = "window.open('?opcion=realizar_pedidos&mesa_id=".$mesa['id'].$param_cliente."', '_top');";
+            $reserva = ($mesa['nombre_usr'] != "") ? "<br><small>Reserva hoy: ".htmlspecialchars($mesa['nombre_usr'])."</small>" : "";
+            $botones_mesas.= "<button onClick=\"$script\">Mesa ".$mesa['id']." (".$mesa['sillas']." sillas)$reserva</button>";
         }
         $retorno .= "<h2>Seleccione la mesa del pedido</h2>";
         $retorno .= "<div class='MENU_OPCIONES'>".$botones_mesas."</div>";
         break;
     case 'pedido_mesa':
-        $retorno .= pedido_formulario($conn, intval($_REQUEST['mesa_id']), array(), pedido_ficha_nueva());
+        $valores = ($cliente_id === null) ? array() : array('cliente_id' => $cliente_id);
+        $retorno .= pedido_formulario($conn, intval($_REQUEST['mesa_id']), $valores, pedido_ficha_nueva());
     }
 
     return $retorno;

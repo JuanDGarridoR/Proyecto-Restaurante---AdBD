@@ -101,9 +101,18 @@ function pedido_meseros($conn) {
         FROM usuarios AS USR
         JOIN actuaciones AS ACT ON ACT.usuario_id = USR.id
         JOIN roles AS ROL ON ROL.id = ACT.rol_id
-        WHERE ROL.nombre = 'Mesero'
+        WHERE ROL.nombre = 'Mesero' AND USR.activo
         GROUP BY USR.id, USR.nombre
         ORDER BY USR.nombre", $conn);
+}
+
+// Un mesero registra pedidos a su nombre; el administrador puede elegir el mesero
+function pedido_mesero_fijo() {
+    return (!sesion_es_admin() && sesion_tiene_rol('Mesero')) ? sesion_id() : null;
+}
+
+function pedido_clientes($conn) {
+    return procesar_query("SELECT id, nombre FROM usuarios WHERE activo ORDER BY nombre", $conn);
 }
 
 /*------------------------------------------------------------------*/
@@ -129,6 +138,8 @@ function pedido_leer_formulario($conn, &$errores)
         $errores[] = "Seleccione un cliente existente.";
 
     $datos['mesero_id'] = mesa_validar_entero('mesero_id', 1, 2147483647);
+    if (pedido_mesero_fijo() !== null)
+        $datos['mesero_id'] = pedido_mesero_fijo();
     $es_mesero = false;
     foreach (pedido_meseros($conn)->datos as $mesero)
         if ($mesero['id'] == $datos['mesero_id'])
@@ -137,7 +148,7 @@ function pedido_leer_formulario($conn, &$errores)
         $errores[] = "Seleccione un mesero válido (usuario con rol Mesero).";
 
     $platos = array();
-    foreach (procesar_query("SELECT id, nombre FROM platos", $conn)->datos as $plato)
+    foreach (procesar_query("SELECT id, nombre FROM platos WHERE activo", $conn)->datos as $plato)
         $platos[$plato['id']] = $plato['nombre'];
 
     $datos['platos'] = array();
@@ -178,7 +189,7 @@ function pedido_guardar($conn, $datos, &$pedido_id)
     $nuevo = reserva_consulta($conn, 'INSERT INTO pedidos (cliente_id, mesero_id, mesa_id) VALUES ($1, $2, $3) RETURNING id',
                               array($datos['cliente_id'], $datos['mesero_id'], $datos['mesa_id']));
     if ($nuevo === null)
-        $error = "Error al guardar el pedido: " . pg_last_error($conn);
+        $error = "Error al guardar el pedido: " . error_bd($conn);
     else
         $pedido_id = intval($nuevo[0]['id']);
 
@@ -190,7 +201,7 @@ function pedido_guardar($conn, $datos, &$pedido_id)
             SELECT id, $2, $3, $4, now(), precio FROM platos WHERE id = $1',
             array($plato_id, $pedido_id, PEDIDO_EN_PREPARACION, $cantidad));
         if (!$res)
-            $error = "Error al guardar los platos del pedido: " . pg_last_error($conn);
+            $error = "Error al guardar los platos del pedido: " . error_bd($conn);
         elseif (pg_affected_rows($res) != 1)
             $error = "El plato $plato_id ya no existe en el menú.";
     }
@@ -234,15 +245,21 @@ function pedido_formulario($conn, $mesa_id, $valores, $ficha, $mensaje = "")
            . "<input type='hidden' name='mesa_id' value='$mesa_id'>"
            . "<input type='hidden' name='ficha' value='$ficha'>";
 
-    $html .= "<label>Mesero:</label> <select name='mesero_id' required><option value=''></option>";
-    foreach (pedido_meseros($conn)->datos as $mesero) {
-        $marcado = ($valor('mesero_id') == $mesero['id']) ? " selected" : "";
-        $html .= "<option value='" . $mesero['id'] . "'$marcado>" . htmlspecialchars($mesero['nombre']) . "</option>";
+    if (pedido_mesero_fijo() !== null) {
+        $usuario = sesion_usuario();
+        $html .= "<input type='hidden' name='mesero_id' value='" . pedido_mesero_fijo() . "'>"
+               . "<label>Mesero: <strong>" . htmlspecialchars($usuario['nombre']) . "</strong></label>";
+    } else {
+        $html .= "<label>Mesero:</label> <select name='mesero_id' required><option value=''></option>";
+        foreach (pedido_meseros($conn)->datos as $mesero) {
+            $marcado = ($valor('mesero_id') == $mesero['id']) ? " selected" : "";
+            $html .= "<option value='" . $mesero['id'] . "'$marcado>" . htmlspecialchars($mesero['nombre']) . "</option>";
+        }
+        $html .= "</select>";
     }
-    $html .= "</select>";
 
     $html .= "<label>Cliente:</label> <select name='cliente_id' required><option value=''></option>";
-    foreach (procesar_query("SELECT id, nombre FROM usuarios ORDER BY nombre", $conn)->datos as $cliente) {
+    foreach (pedido_clientes($conn)->datos as $cliente) {
         $marcado = ($valor('cliente_id') == $cliente['id']) ? " selected" : "";
         $html .= "<option value='" . $cliente['id'] . "'$marcado>" . htmlspecialchars($cliente['nombre']) . "</option>";
     }
@@ -253,6 +270,7 @@ function pedido_formulario($conn, $mesa_id, $valores, $ficha, $mensaje = "")
         SELECT platos.id, platos.nombre, tipos.nombre AS tipo, precio
         FROM platos
         LEFT JOIN tipos ON platos.tipo_id = tipos.id
+        WHERE platos.activo
         ORDER BY tipos.id, platos.nombre", $conn);
     $html .= "<table><tr><th>Plato</th><th>Tipo</th><th>Precio</th><th>Cantidad</th></tr>";
     foreach ($platos->datos as $plato) {
@@ -310,39 +328,72 @@ function fn_pedidos($conn, $mensaje = "")
 {
     $scr_nuevo = "window.open('?opcion=realizar_pedidos', '_top');";
     $html = fn_boton_menu_principal() . "<button onClick=\"$scr_nuevo\">Realizar pedido</button>";
-    $html .= "<h2>Pedidos registrados</h2>";
+    $html .= "<h2>Pedidos y entregas</h2>";
     $html .= $mensaje;
     $html .= notificaciones_widget($conn, 'Mesero');
 
-    $pedidos = procesar_query("
-        SELECT PED.id
-             , " . pedido_sql_mesa($conn) . " AS mesa_id
-             , CLI.nombre AS cliente
-             , MSR.nombre AS mesero
-             , to_char(MIN(ORD.solicitado), 'YYYY-MM-DD HH24:MI') AS fecha
-             , MIN(ORD.estado) AS estado
-             , COALESCE(SUM(ORD.cantidad), 0) AS platos
-             , COALESCE(SUM(ORD.cantidad * " . pedido_sql_precio($conn) . "), 0) AS total
-        FROM pedidos AS PED
-        LEFT JOIN usuarios AS CLI ON CLI.id = PED.cliente_id
-        LEFT JOIN usuarios AS MSR ON MSR.id = PED.mesero_id
-        LEFT JOIN ordenes AS ORD ON ORD.pedido_id = PED.id
-        LEFT JOIN platos AS PLA ON PLA.id = ORD.plato_id
-        GROUP BY PED.id, CLI.nombre, MSR.nombre
-        ORDER BY MIN(ORD.solicitado) DESC NULLS LAST, PED.id DESC", $conn);
+    // Filtros: pendientes (sin entregar) o todos; solo los míos o de todos los meseros
+    $ver = (isset($_REQUEST['ver']) && $_REQUEST['ver'] == 'todos') ? 'todos' : 'pendientes';
+    $mios = pedido_mesero_fijo() !== null && !(isset($_REQUEST['mios']) && $_REQUEST['mios'] == '0');
+    $condiciones = array();
+    $parametros = array();
+    if ($ver == 'pendientes')
+        $condiciones[] = "estado < " . PEDIDO_ENTREGADO;
+    if ($mios) {
+        $parametros[] = sesion_id();
+        $condiciones[] = "mesero_id = $" . count($parametros);
+    }
+    $where = count($condiciones) ? "WHERE " . implode(" AND ", $condiciones) : "";
+
+    $pedidos = reserva_consulta($conn, "
+        SELECT pedido_id AS id, mesa_id, cliente, mesero, estado, platos, platos_en_preparacion, total,
+               to_char(solicitado, 'YYYY-MM-DD HH24:MI') AS fecha
+        FROM v_pedidos
+        $where
+        ORDER BY (estado = 2) DESC, solicitado DESC NULLS LAST, pedido_id DESC
+        LIMIT 200", $parametros);
+
+    $enlace = function ($param_ver, $param_mios, $texto, $activo) {
+        if ($activo)
+            return "<strong>$texto</strong> ";
+        return "<a class='FILTRO' href='?opcion=pedidos&ver=$param_ver&mios=$param_mios'>$texto</a> ";
+    };
+    $html .= "<p>" . $enlace('pendientes', $mios ? 1 : 0, "Sin entregar", $ver == 'pendientes')
+           . $enlace('todos', $mios ? 1 : 0, "Todos", $ver == 'todos');
+    if (pedido_mesero_fijo() !== null)
+        $html .= " | " . $enlace($ver, 1, "Mis pedidos", $mios) . $enlace($ver, 0, "De todos los meseros", !$mios);
+    $html .= "</p>";
 
     $html .= "<table><tr><th>Pedido</th><th>Fecha</th><th>Mesa</th><th>Cliente</th><th>Mesero</th><th>Platos</th><th>Total</th><th>Estado</th><th>Acciones</th></tr>";
-    foreach ($pedidos->datos as $pedido) {
+    foreach ($pedidos as $pedido) {
         $scr_ver = "window.open('?opcion=ver_pedido&pedido_id=" . $pedido['id'] . "', '_top');";
-        $html .= "<tr><td>" . $pedido['id'] . "</td><td>" . $pedido['fecha'] . "</td><td>" . ($pedido['mesa_id'] ?: "Sin registrar")
+        $acciones = "<button onClick=\"$scr_ver\">Ver detalle</button>";
+        $estado = pedido_nombre_estado($pedido['estado']);
+        if ($pedido['estado'] == 2) {
+            $estado = "<strong>Listo para entregar</strong>";
+            $acciones .= pedido_boton_entregar($pedido['id']);
+        } elseif ($pedido['estado'] == 1) {
+            $estado .= " (" . $pedido['platos_en_preparacion'] . " en cocina)";
+        }
+        $html .= "<tr" . ($pedido['estado'] == 2 ? " class='LISTO'" : "") . "><td>" . $pedido['id'] . "</td><td>" . $pedido['fecha'] . "</td><td>" . ($pedido['mesa_id'] ?: "Sin registrar")
                . "</td><td>" . htmlspecialchars($pedido['cliente']) . "</td><td>" . htmlspecialchars($pedido['mesero'])
                . "</td><td>" . $pedido['platos'] . "</td><td>" . pedido_dinero($pedido['total'])
-               . "</td><td>" . pedido_nombre_estado($pedido['estado'])
-               . "</td><td><button onClick=\"$scr_ver\">Ver detalle</button></td></tr>";
+               . "</td><td>$estado</td><td>$acciones</td></tr>";
     }
     $html .= "</table>";
+    if (count($pedidos) == 0)
+        $html .= "<p>No hay pedidos con este filtro.</p>";
 
     return $html;
+}
+
+function pedido_boton_entregar($pedido_id) {
+    return "<form method='post' action='./' style='display:inline'>"
+         . "<input type='hidden' name='opcion' value='estado_pedido'>"
+         . "<input type='hidden' name='pedido_id' value='$pedido_id'>"
+         . "<input type='hidden' name='estado' value='" . PEDIDO_ENTREGADO . "'>"
+         . "<button type='submit'>Entregar</button>"
+         . "</form>";
 }
 
 /*------------------------------------------------------------------*/
@@ -373,18 +424,23 @@ function fn_ver_pedido($conn, $pedido_id = null, $mensaje = "")
              , ORD.cantidad * " . pedido_sql_precio($conn) . " AS subtotal
              , ORD.estado
              , to_char(ORD.solicitado, 'YYYY-MM-DD HH24:MI') AS solicitado
+             , COC.nombre AS cocinero
         FROM ordenes AS ORD
         JOIN platos AS PLA ON PLA.id = ORD.plato_id
+        LEFT JOIN usuarios AS COC ON COC.id = ORD.cocinero_id
         WHERE ORD.pedido_id = $1
         ORDER BY ORD.id", array($pedido_id));
 
     $total = 0;
     $estado = null;
     $hay_precio_actual = false;
+    $preparados = 0;
     foreach ($ordenes as $orden) {
         $total += floatval($orden['subtotal']);
         $estado = ($estado === null) ? intval($orden['estado']) : min($estado, intval($orden['estado']));
         $hay_precio_actual = $hay_precio_actual || $orden['precio_actual'] == 't';
+        if ($orden['estado'] == 2)
+            $preparados++;
     }
 
     $html = fn_boton_menu_principal() . pedido_boton_lista();
@@ -393,29 +449,25 @@ function fn_ver_pedido($conn, $pedido_id = null, $mensaje = "")
     $html .= "<p>Mesa: " . ($pedido['mesa_id'] ?: "Sin registrar") . " · Cliente: " . htmlspecialchars($pedido['cliente'])
            . " · Mesero: " . htmlspecialchars($pedido['mesero']) . " · Estado: " . pedido_nombre_estado($estado) . "</p>";
 
-    $html .= "<table><tr><th>Plato</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th><th>Estado</th><th>Solicitado</th></tr>";
+    $html .= "<table><tr><th>Plato</th><th>Cantidad</th><th>Precio</th><th>Subtotal</th><th>Estado</th><th>Cocinero</th><th>Solicitado</th></tr>";
     foreach ($ordenes as $orden) {
-        $html .= "<tr><td>" . htmlspecialchars($orden['nombre']) . "</td><td>" . $orden['cantidad']
+        $html .= "<tr" . ($orden['estado'] == 2 ? " class='LISTO'" : "") . "><td>" . htmlspecialchars($orden['nombre']) . "</td><td>" . $orden['cantidad']
                . "</td><td>" . pedido_dinero($orden['precio']) . ($orden['precio_actual'] == 't' ? "*" : "")
                . "</td><td>" . pedido_dinero($orden['subtotal']) . "</td><td>" . pedido_nombre_estado(intval($orden['estado']))
+               . "</td><td>" . htmlspecialchars($orden['cocinero'] ?: "Sin asignar")
                . "</td><td>" . $orden['solicitado'] . "</td></tr>";
     }
-    $html .= "<tr><th colspan='3'>Total</th><th>" . pedido_dinero($total) . "</th><th colspan='2'></th></tr>";
+    $html .= "<tr><th colspan='3'>Total</th><th>" . pedido_dinero($total) . "</th><th colspan='3'></th></tr>";
     $html .= "</table>";
     if ($hay_precio_actual)
         $html .= "<p>* Pedido anterior al registro de precios: se usa el precio actual del plato.</p>";
 
-    if ($estado !== null && $estado < PEDIDO_ENTREGADO) {
-        $html .= "<form method='post' action='./'>"
-               . "<input type='hidden' name='opcion' value='estado_pedido'>"
-               . "<input type='hidden' name='pedido_id' value='$pedido_id'>"
-               . "<label>Nuevo estado:</label> <select name='estado'>";
-        foreach (pedido_estados() as $valor => $nombre)
-            if ($valor > $estado)
-                $html .= "<option value='$valor'>$nombre</option>";
-        $html .= "</select>"
-               . "<button type='submit'>Actualizar estado</button>"
-               . "</form>";
+    // El cocinero marca cada plato como «Preparado»; el mesero entrega los preparados
+    if ($preparados > 0) {
+        $texto = ($estado == 2) ? "Todos los platos están listos." : "Hay $preparados plato(s) listo(s); los demás siguen en cocina.";
+        $html .= "<p>$texto</p>" . pedido_boton_entregar($pedido_id);
+    } elseif ($estado == PEDIDO_EN_PREPARACION) {
+        $html .= "<p>Los platos están en cocina. Recibirá una notificación cuando el pedido esté listo para entregar.</p>";
     }
 
     return $html;
@@ -423,42 +475,36 @@ function fn_ver_pedido($conn, $pedido_id = null, $mensaje = "")
 
 /*------------------------------------------------------------------*/
 /**
- * @brief Avanza el estado de un pedido. Solo se permite avanzar
- *        (En preparación → Preparado → Entregado), nunca retroceder.
+ * @brief Registra la entrega de los platos preparados de un pedido
+ *        (Preparado → Entregado). Marcar «Preparado» le corresponde al
+ *        cocinero; la base de datos impide entregar platos sin preparar
+ *        y retroceder estados.
  */
 function fn_estado_pedido($conn)
 /*--------------------------------------------------------------------*/
 {
     $pedido_id = mesa_validar_entero('pedido_id', 1, 2147483647);
     if ($_SERVER['REQUEST_METHOD'] != 'POST')
-        return fn_pedidos($conn, "<p>Error: use el botón Actualizar estado del pedido.</p>");
+        return fn_pedidos($conn, mensaje_error("Use el botón Entregar del pedido."));
     if ($pedido_id === null)
-        return fn_pedidos($conn, "<p>Error: el pedido indicado no existe.</p>");
-
-    $estados = pedido_estados();
-    $nuevo = mesa_validar_entero('estado', 1, count($estados));
-    if ($nuevo === null)
-        return fn_ver_pedido($conn, $pedido_id, "<p>Error: seleccione un estado válido.</p>");
+        return fn_pedidos($conn, mensaje_error("El pedido indicado no existe."));
+    if (mesa_validar_entero('estado', 1, 3) !== PEDIDO_ENTREGADO)
+        return fn_ver_pedido($conn, $pedido_id, mensaje_error("El mesero solo registra entregas; el cocinero marca los platos como preparados."));
 
     $anidada = reserva_transaccion_iniciar($conn);
-    $filas = reserva_consulta($conn, 'SELECT estado FROM ordenes WHERE pedido_id = $1 FOR UPDATE', array($pedido_id));
+    $res = @pg_query_params($conn, 'UPDATE ordenes SET estado = $1 WHERE pedido_id = $2 AND estado = 2',
+                            array(PEDIDO_ENTREGADO, $pedido_id));
     $error = "";
-    if ($filas === null)
-        $error = "Error al consultar el pedido: " . pg_last_error($conn);
-    elseif (count($filas) == 0)
-        $error = "Error: el pedido $pedido_id no existe o no tiene platos.";
-    else {
-        $actual = min(array_map('intval', array_column($filas, 'estado')));
-        if ($nuevo <= $actual)
-            $error = "Error: el pedido ya está «" . pedido_nombre_estado($actual) . "»; solo puede avanzar a un estado posterior.";
-        elseif (!@pg_query_params($conn, 'UPDATE ordenes SET estado = $1 WHERE pedido_id = $2 AND estado < $1', array($nuevo, $pedido_id)))
-            $error = "Error al actualizar el estado: " . pg_last_error($conn);
-    }
+    if (!$res)
+        $error = "Error al registrar la entrega: " . error_bd($conn);
+    elseif (pg_affected_rows($res) == 0)
+        $error = "El pedido $pedido_id no tiene platos preparados pendientes de entrega.";
+    $entregados = $res ? pg_affected_rows($res) : 0;
     reserva_transaccion_terminar($conn, $anidada, $error == "");
 
     if ($error != "")
-        return fn_ver_pedido($conn, $pedido_id, reserva_mensajes(array($error)));
-    return fn_ver_pedido($conn, $pedido_id, "<p>Pedido $pedido_id actualizado a «" . $estados[$nuevo] . "».</p>");
+        return fn_ver_pedido($conn, $pedido_id, mensaje_error($error));
+    return fn_ver_pedido($conn, $pedido_id, mensaje_ok("Se registró la entrega de $entregados plato(s) del pedido $pedido_id."));
 }
 
 ?>

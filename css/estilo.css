@@ -268,3 +268,163 @@ main img {
 		border-radius:	0px 0px 5px 5px;
 	}
 }
+
+/*------------------------------------------------------------------*/
+/* Sesión, tablero por rol, mensajes y notificaciones               */
+/*------------------------------------------------------------------*/
+.BARRA_USUARIO {
+	font-size:	0.45em;
+	margin-top:	8px;
+}
+.BARRA_USUARIO a,
+main a.FILTRO {
+	font-size:	1em;
+	margin:		0 4px;
+	padding:	3px 10px;
+	border:		1px solid navy;
+	border-radius:	5px;
+}
+.BARRA_USUARIO span {
+	margin-right:	10px;
+}
+.TABLERO {
+	display:	flex;
+	flex-wrap:	wrap;
+	justify-content: center;
+	gap:		15px;
+}
+.TABLERO .ROL {
+	flex:		1 1 280px;
+	max-width:	460px;
+	border:		3px solid grey;
+	border-radius:	10px;
+	padding:	10px;
+}
+.TABLERO .ROL h2 {
+	margin:		5px 0;
+	color:		navy;
+}
+.TABLERO .ROL p {
+	margin:		0 0 5px 0;
+	font-size:	0.9em;
+}
+.TABLERO .MENU_OPCIONES button {
+	width:		120px;
+	height:		80px;
+	font-size:	medium;
+}
+.MENSAJE {
+	max-width:	760px;
+	margin:		10px auto;
+	padding:	10px 15px;
+	border-radius:	5px;
+	border-left:	6px solid;
+	text-align:	left;
+}
+.MENSAJE.OK {
+	background:	#e7f6ea;
+	border-color:	#2e7d32;
+}
+.MENSAJE.ERROR {
+	background:	#fdecea;
+	border-color:	#c62828;
+}
+main tr.INACTIVO td {
+	color:		grey;
+	font-style:	italic;
+}
+main tr.LISTO td {
+	background:	#e7f6ea;
+}
+main form fieldset {
+	grid-column:	1 / -1;
+	border:		1px solid navy;
+	border-radius:	5px;
+}
+main form label:has(input[type=checkbox]) {
+	grid-column:	1 / -1;
+	text-align:	center;
+}
+.FORMULARIO_LOGIN {
+	max-width:	420px;
+}
+.DISPONIBILIDAD {
+	max-width:	850px;
+	margin:		15px auto;
+	padding:	10px;
+	border:		2px solid #ddd;
+	border-radius:	8px;
+	text-align:	left;
+}
+.DISPONIBILIDAD summary {
+	cursor:		pointer;
+	font-weight:	bold;
+	color:		navy;
+}
+.DISPONIBILIDAD p {
+	text-align:	center;
+}
+.DISPONIBILIDAD .MENU_OPCIONES {
+	text-align:	center;
+}
+.NOTIF_WIDGET {
+	max-width:	850px;
+	margin:		15px auto;
+	padding:	12px;
+	border:		2px solid #ddd;
+	border-radius:	8px;
+	text-align:	left;
+}
+.NOTIF_ENCABEZADO {
+	padding-bottom:	8px;
+	border-bottom:	1px solid #eee;
+	color:		navy;
+}
+.NOTIF_CONTADOR {
+	background:	#c62828;
+	color:		white;
+	padding:	2px 8px;
+	border-radius:	12px;
+	font-size:	0.8em;
+}
+.NOTIF_LISTA {
+	display:	flex;
+	flex-direction:	column;
+	gap:		8px;
+	margin-top:	8px;
+}
+.NOTIF {
+	padding:	8px 12px;
+	border-left:	5px solid;
+	border-radius:	4px;
+	background:	#fdfdfd;
+	box-shadow:	0 1px 3px rgba(0, 0, 0, 0.1);
+}
+.NOTIF.PEDIDO {
+	border-color:	#2e7d32;
+}
+.NOTIF.RESERVA {
+	border-color:	#0277bd;
+}
+.NOTIF_CABECERA {
+	display:	flex;
+	justify-content: space-between;
+	align-items:	center;
+	flex-wrap:	wrap;
+}
+.NOTIF_VACIA,
+.NOTIF_PIE {
+	color:		#666;
+	font-size:	0.85em;
+}
+.NOTIF_PIE {
+	text-align:	right;
+	margin-top:	6px;
+}
+.NOTIF_PIE a {
+	font-size:	1em;
+	margin:		0;
+	padding:	0;
+	border:		0;
+	color:		navy;
+}

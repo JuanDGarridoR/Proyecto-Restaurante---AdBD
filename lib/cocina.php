@@ -31,9 +31,25 @@ function cocina_listar_cocineros($conn)
             FROM usuarios u
             JOIN actuaciones a ON a.usuario_id = u.id
             JOIN roles r ON r.id = a.rol_id
-            WHERE r.nombre = 'Cocinero'
+            WHERE r.nombre = 'Cocinero' AND u.activo
             ORDER BY u.nombre";
     return procesar_query($sql, $conn);
+}
+
+/**
+ * @brief Cocinero con el que se trabaja: un cocinero solo ve y prepara
+ *        su propia cola; el administrador puede elegir cualquiera.
+ */
+function cocina_cocinero_actual($cocineros)
+{
+    if (!sesion_es_admin())
+        return sesion_id();
+    $cocinero_id = isset($_REQUEST['cocinero_id']) ? intval($_REQUEST['cocinero_id']) : 0;
+    if ($cocinero_id == 0 && sesion_tiene_rol('Cocinero'))
+        $cocinero_id = sesion_id();
+    if ($cocinero_id == 0 && $cocineros->cantidad > 0)
+        $cocinero_id = intval($cocineros->datos[0]['id']);
+    return $cocinero_id;
 }
 
 /*------------------------------------------------------------------*/
@@ -219,10 +235,7 @@ function fn_cocina($conn, $mensaje = "")
 /*--------------------------------------------------------------------*/
 {
     $cocineros = cocina_listar_cocineros($conn);
-    $cocinero_id = isset($_REQUEST['cocinero_id']) ? intval($_REQUEST['cocinero_id']) : 0;
-    if ($cocinero_id == 0 && $cocineros->cantidad > 0) {
-        $cocinero_id = intval($cocineros->datos[0]['id']);
-    }
+    $cocinero_id = cocina_cocinero_actual($cocineros);
 
     $nombre_cocinero = "";
     foreach ($cocineros->datos as $c) {
@@ -233,12 +246,17 @@ function fn_cocina($conn, $mensaje = "")
     }
 
     $html = fn_boton_menu_principal();
-    $scr_auth = "window.open('?opcion=autorizaciones_cocina&cocinero_id=" . $cocinero_id . "', '_top');";
-    $html .= "<button onClick=\"$scr_auth\">Gestionar autorizaciones</button>";
+    if (sesion_es_admin()) {
+        $scr_auth = "window.open('?opcion=autorizaciones_cocina&cocinero_id=" . $cocinero_id . "', '_top');";
+        $html .= "<button onClick=\"$scr_auth\">Gestionar autorizaciones</button>";
+    }
     $html .= "<h2>Cocina - Preparación de platos</h2>";
     $html .= $mensaje;
+    // Se actualiza sola cada 30 s para mostrar los pedidos nuevos
+    $html .= "<script>setTimeout(function () { if (!document.querySelector('form:focus-within')) window.location.href = '?opcion=cocina&cocinero_id=$cocinero_id'; }, 30000);</script>";
 
-    // Selector de cocinero activo
+    // Selector de cocinero activo (solo el administrador cambia de cocinero)
+    if (sesion_es_admin()) {
     $html .= "<form method='get' action='./' style='margin-bottom: 20px;'>";
     $html .= "<input type='hidden' name='opcion' value='cocina'>";
     $html .= "<label><strong>Cocinero activo:</strong></label> ";
@@ -250,6 +268,7 @@ function fn_cocina($conn, $mensaje = "")
     $html .= "</select> ";
     $html .= "<button type='submit'>Cambiar</button>";
     $html .= "</form>";
+    }
 
     if ($cocinero_id > 0) {
         // Consultar la cola del cocinero usando la función de BD cola_cocinero()
@@ -364,7 +383,7 @@ function fn_cocina($conn, $mensaje = "")
  */
 function fn_tomar_orden($conn)
 {
-    $cocinero_id = isset($_REQUEST['cocinero_id']) ? intval($_REQUEST['cocinero_id']) : 0;
+    $cocinero_id = cocina_cocinero_actual(cocina_listar_cocineros($conn));
     $orden_id = isset($_REQUEST['orden_id']) ? intval($_REQUEST['orden_id']) : 0;
 
     if ($cocinero_id <= 0 || $orden_id <= 0) {
@@ -390,7 +409,7 @@ function fn_tomar_orden($conn)
  */
 function fn_marcar_preparada($conn)
 {
-    $cocinero_id = isset($_REQUEST['cocinero_id']) ? intval($_REQUEST['cocinero_id']) : 0;
+    $cocinero_id = cocina_cocinero_actual(cocina_listar_cocineros($conn));
     $orden_id = isset($_REQUEST['orden_id']) ? intval($_REQUEST['orden_id']) : 0;
 
     if ($cocinero_id <= 0 || $orden_id <= 0) {

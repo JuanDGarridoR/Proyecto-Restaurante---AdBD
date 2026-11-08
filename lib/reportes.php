@@ -41,12 +41,23 @@ function fn_reportes($conn, $mensaje = "")
 /*--------------------------------------------------------------------*/
 {
     // Parámetros de filtrado
+    // Los parámetros se validan contra listas y formatos fijos porque se
+    // insertan en las sentencias SQL de los reportes
     $tipo_reporte = isset($_REQUEST['tipo_reporte']) ? $_REQUEST['tipo_reporte'] : 'ventas';
+    if (!in_array($tipo_reporte, array('ventas', 'items', 'reservas', 'materializada'), true))
+        $tipo_reporte = 'ventas';
     $granularidad = isset($_REQUEST['granularidad']) ? $_REQUEST['granularidad'] : 'semana';
-    $fecha_inicio = isset($_REQUEST['fecha_inicio']) ? $_REQUEST['fecha_inicio'] : date('Y-m-d', strtotime('-60 days'));
-    $fecha_fin = isset($_REQUEST['fecha_fin']) ? $_REQUEST['fecha_fin'] : date('Y-m-d');
+    if (!in_array($granularidad, array('dia', 'semana', 'mes'), true))
+        $granularidad = 'semana';
+    $fecha_valida = function ($campo, $omision) {
+        $valor = isset($_REQUEST[$campo]) ? $_REQUEST[$campo] : "";
+        $fecha = DateTime::createFromFormat('!Y-m-d', $valor);
+        return ($fecha && $fecha->format('Y-m-d') === $valor) ? $valor : $omision;
+    };
+    $fecha_inicio = $fecha_valida('fecha_inicio', date('Y-m-d', strtotime('-60 days')));
+    $fecha_fin = $fecha_valida('fecha_fin', date('Y-m-d'));
     $top_n = isset($_REQUEST['top_n']) ? intval($_REQUEST['top_n']) : 10;
-    if ($top_n <= 0) $top_n = 10;
+    if ($top_n <= 0 || $top_n > 100) $top_n = 10;
 
     // Manejo de refresco de vista materializada
     if (isset($_REQUEST['accion']) && $_REQUEST['accion'] == 'refrescar_vm') {
@@ -153,7 +164,7 @@ function fn_reportes($conn, $mensaje = "")
     $html .= "</form>";
 
     // Inclusión de Chart.js desde CDN
-    $html .= "<script src='https://cdn.jsdelivr.net/npm/chart.js'></script>";
+    $html .= "<script src='https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js'></script>";
 
     // -------------------------------------------------------------
     // REPORTE 1: VENTAS TOTALES POR PERIODO
