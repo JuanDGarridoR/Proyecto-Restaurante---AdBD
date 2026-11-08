@@ -22,7 +22,7 @@ sesion_iniciar();
 $conn = pg_conectar($host, $dbname, $user);
 
 $opcion = "";
-if (isset($_REQUEST['opcion']))
+if (isset($_REQUEST['opcion']) && is_string($_REQUEST['opcion']))
     $opcion = $_REQUEST['opcion'];
 
 // Los datos y roles del usuario se releen en cada petición para que los

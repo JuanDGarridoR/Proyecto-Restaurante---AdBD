@@ -126,9 +126,28 @@ footer * {
 /*------------------------------------------------------------------*/
 /* Tablas, formularios y botones de las páginas de gestión          */
 /*------------------------------------------------------------------*/
+/* Los botones de opciones se alinean en filas parejas aunque su texto
+   ocupe distinto número de líneas (con inline-block se alineaban por la
+   línea base del texto y unos quedaban más arriba que otros). */
+.MENU_OPCIONES {
+	display:	flex;
+	flex-wrap:	wrap;
+	justify-content: center;
+	align-items:	flex-start;
+}
 .MENU_OPCIONES button {
+	display:	inline-flex;
+	flex-direction:	column;
+	align-items:	center;
+	justify-content: center;
+	vertical-align:	top;
 	overflow-wrap:	break-word;
 	hyphens:	auto;
+}
+/* Botones y enlaces sueltos (barras de acciones) a la misma altura */
+main button,
+main a {
+	vertical-align:	middle;
 }
 main article {
 	overflow-x:	auto;
@@ -307,6 +326,12 @@ main a.FILTRO {
 .TABLERO .ROL p {
 	margin:		0 0 5px 0;
 	font-size:	0.9em;
+	/* Reserva dos líneas para que los botones de todas las tarjetas
+	   empiecen a la misma altura aunque la descripción sea corta */
+	min-height:	2.4em;
+	display:	flex;
+	align-items:	center;
+	justify-content: center;
 }
 .TABLERO .MENU_OPCIONES button {
 	width:		120px;

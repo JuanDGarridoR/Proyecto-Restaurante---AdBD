@@ -103,8 +103,10 @@ function fn_reportes($conn, $mensaje = "")
     }
 
     $html = fn_boton_menu_principal();
-    $scr_hist = "window.open('?opcion=historial_clientes', '_top');";
-    $html .= "<button onClick=\"$scr_hist\">Historial de Clientes</button>";
+    if (sesion_puede('historial_clientes')) {
+        $scr_hist = "window.open('?opcion=historial_clientes', '_top');";
+        $html .= "<button onClick=\"$scr_hist\">Historial de Clientes</button>";
+    }
     $html .= "<h2>Reportes del Administrador y Estadísticas</h2>";
     $html .= $mensaje;
 
@@ -470,8 +472,10 @@ function fn_historial_clientes($conn)
     }
 
     $html = fn_boton_menu_principal();
-    $scr_rep = "window.open('?opcion=reportes', '_top');";
-    $html .= "<button onClick=\"$scr_rep\">Reportes del Administrador</button>";
+    if (sesion_puede('reportes')) {
+        $scr_rep = "window.open('?opcion=reportes', '_top');";
+        $html .= "<button onClick=\"$scr_rep\">Reportes del Administrador</button>";
+    }
     $html .= "<h2>Historial de Clientes</h2>";
 
     // Formulario de Búsqueda

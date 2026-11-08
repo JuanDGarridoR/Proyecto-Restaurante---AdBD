@@ -86,6 +86,9 @@ function fn_menu_opciones($conn)
             continue;
         $retorno .= "<section class='ROL'><h2>$rol</h2><p>" . $seccion['descripcion'] . "</p><div class='MENU_OPCIONES'>";
         foreach ($seccion['opciones'] as $opcion => $texto) {
+            // Solo se muestran las opciones que el rol realmente puede usar
+            if (!sesion_puede(strtok($opcion, '&')))
+                continue;
             $script = "window.open('?opcion=$opcion', '_top');";
             $retorno .= "<button onClick=\"$script\">$texto</button>";
         }

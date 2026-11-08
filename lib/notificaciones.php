@@ -205,6 +205,10 @@ function fn_ajax_notificaciones($conn)
         notif_responder_json(array('ok' => false, 'count' => 0, 'error' => 'Empleado no especificado'));
 
     $rol = (isset($_REQUEST['rol']) && $_REQUEST['rol'] == 'Maitre') ? 'Maitre' : 'Mesero';
+    // Cada usuario solo consulta las notificaciones de los roles que tiene
+    $roles_rol = ($rol == 'Maitre') ? array('Maitre', 'Recepcionista') : array('Mesero');
+    if (!sesion_es_admin() && !sesion_tiene_rol(...$roles_rol))
+        notif_responder_json(array('ok' => false, 'count' => 0, 'error' => 'Su rol no tiene acceso a estas notificaciones'));
     if ($rol == 'Maitre')
         notif_generar_reservas_proximas($conn);
     $notifs = notif_consultar_no_leidas($conn, $empleado_id);
