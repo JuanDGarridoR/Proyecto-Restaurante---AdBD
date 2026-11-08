@@ -10,18 +10,27 @@ no solo en la aplicación. Si alguien modifica los datos directamente con SQL, l
 
 1. Requisitos: PostgreSQL 13 o superior y PHP 8 con la extensión `pgsql` habilitada
    (en `php.ini`: `extension=pgsql`).
-2. Cree la base de datos completa con un solo comando, como superusuario:
+2. Cree los dos directorios de los tablespaces (deben pertenecer al usuario `postgres`):
+
+   ```bash
+   sudo mkdir -p /var/lib/pgsql/tablespaces/restaurante_actual /var/lib/pgsql/tablespaces/restaurante_historico
+   sudo chown -R postgres:postgres /var/lib/pgsql/tablespaces
+   ```
+
+3. Cree la base de datos completa con un solo comando, como superusuario:
 
    ```bash
    psql -U postgres -f sql/instalar.sql
    ```
 
-   Este script crea el rol `estudiante` y la base `restaurante`. Luego carga el volcado
-   y las migraciones en orden. Si la base ya existe, se detiene sin tocarla.
-3. Revise la conexión en [etc/parametros.php](etc/parametros.php) (host, base de datos, usuario).
+   Si usó otra carpeta para los tablespaces, indíquela con `-v ts_dir=/otra/ruta`.
+   Este script crea el rol `estudiante`, los tablespaces y la base `restaurante`. Luego carga el volcado
+   y las migraciones en orden. Si la base ya existe, se detiene sin tocarla
+   (para reinstalar: `psql -U postgres -c "DROP DATABASE restaurante WITH (FORCE);"`).
+4. Revise la conexión en [etc/parametros.php](etc/parametros.php) (host, base de datos, usuario).
    Si el servidor pide clave o usa otro puerto, puede definir las variables de entorno
    `PGPASSWORD` / `PGPORT`, que libpq lee automáticamente.
-4. Publique la carpeta en Apache, o pruébela con el servidor de PHP:
+5. Publique la carpeta en Apache, o pruébela con el servidor de PHP:
 
    ```bash
    php -S localhost:8000
@@ -62,6 +71,8 @@ Las claves se guardan como `sha256(sal || clave)`.
 | **4.2 Empleados** | Admin → *Empleados y usuarios* ([lib/empleados.php](lib/empleados.php)): crear, modificar, asignar varios roles, desactivar y cambiar la clave. |
 | **4.3 Historial de clientes** | *Historial de clientes* (`historial_cliente_resumen()` y `historial_cliente_timeline()`). |
 | **4.5 Interfaz por rol** | Inicio de sesión ([lib/sesion.php](lib/sesion.php)) y tablero con una sección por rol. Cada opción declara qué roles pueden usarla. El administrador puede usarlas todas. |
+| **6.1 Tablespaces** (2, en directorios distintos) | [sql/tablespaces.sql](sql/tablespaces.sql): `ts_restaurante_actual` y `ts_restaurante_historico`. |
+| **6.1 Tabla particionada por fechas** | [sql/migracion_particiones.sql](sql/migracion_particiones.sql): `notificaciones` particionada por `RANGE (fecha_creacion)`. Una partición histórica en `ts_restaurante_historico` y una por mes en `ts_restaurante_actual`. `fn_archivar_notificaciones()` mueve las particiones viejas al tablespace histórico. Vista `v_particiones_notificaciones`. |
 
 ## Estructura
 
@@ -79,19 +90,26 @@ lib/cocina.php             autorizaciones y cola del cocinero
 lib/notificaciones.php     notificaciones (widget con actualización automática)
 lib/reportes.php           reportes e historial de clientes
 sql/instalar.sql           instalación completa (usa los archivos siguientes)
+sql/tablespaces.sql        tablespaces ts_restaurante_actual y ts_restaurante_historico
 sql/restaurante_llena.sql  volcado: estructura y datos base
-sql/migracion_*.sql        migraciones (cocineros, notificaciones, reportes, integridad)
-sql/pruebas_*.sql          pruebas de cada módulo (terminan en ROLLBACK)
+sql/migracion_*.sql        migraciones (cocineros, notificaciones, reportes, integridad, particiones)
+sql/pruebas_*.sql          pruebas de cada módulo
+docs/insumo_documentacion.md  información completa para redactar la documentación del proyecto
 ```
 
 ## Pruebas
 
 ```bash
 psql -U postgres -d restaurante -f sql/pruebas_integridad.sql
+psql -U postgres -d restaurante -f sql/pruebas_cocineros.sql
+psql -U postgres -d restaurante -f sql/pruebas_notificaciones.sql
+psql -U postgres -d restaurante -f sql/pruebas_reportes.sql
+psql -U postgres -d restaurante -f sql/pruebas_particiones.sql
 ```
 
-Cada caso imprime `OK` o `FALLA`: cruces, sillas, cupo, cancelación, autorizaciones, platos especiales,
-estados de los pedidos, notificaciones y claves. Todo se deshace al final con `ROLLBACK`.
+Cada caso imprime `OK`/`FALLA` o `EXITO`/`FALLO`: cruces, sillas, cupo, cancelación, autorizaciones, platos especiales,
+estados de los pedidos, notificaciones, claves, tablespaces y particiones. Las pruebas de integridad,
+notificaciones y particiones se deshacen al final con `ROLLBACK`. Las de cocineros sí guardan sus datos de prueba.
 
 > Nota: superar el cupo total implica primero violar la regla de sillas, porque cada reserva debe caber
 > en sus mesas y las mesas no se cruzan. Por eso, en la práctica, el mensaje que aparece es el de las sillas.

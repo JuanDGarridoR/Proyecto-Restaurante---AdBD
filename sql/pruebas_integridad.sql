@@ -158,6 +158,11 @@ UPDATE platos SET activo = FALSE WHERE id = 12;
 SELECT pg_temp.debe_fallar('Pedir un plato retirado del menú',
     'INSERT INTO ordenes (plato_id, pedido_id, cantidad) VALUES (12, 90001, 1)');
 
+SELECT pg_temp.debe_fallar('Orden con cantidad 0',
+    'INSERT INTO ordenes (plato_id, pedido_id, cantidad) VALUES (1, 90001, 0)');
+SELECT pg_temp.debe_fallar('Reservación para 0 personas',
+    'INSERT INTO reservaciones (cliente_id, cantidad) VALUES (10, 0)');
+
 -- 8. Claves
 SELECT pg_temp.debe_funcionar('Autenticación correcta (ana / clave_ana_2026)',
     $q$DO $d$ BEGIN

@@ -302,6 +302,9 @@ ALTER TABLE ordenes ALTER COLUMN plato_id SET NOT NULL;
 ALTER TABLE ordenes ALTER COLUMN pedido_id SET NOT NULL;
 SELECT pg_temp.agregar_restriccion('ordenes', 'ck_ordenes_estado', 'CHECK (estado IN (1, 2, 3))');
 SELECT pg_temp.agregar_restriccion('ordenes', 'ck_ordenes_precio', 'CHECK (precio IS NULL OR precio >= 0)');
+-- restaurante.sql (plantilla) define CHECK (cantidad > 0), pero el volcado
+-- restaurante_llena.sql no lo trae; se restablece aquí
+SELECT pg_temp.agregar_restriccion('ordenes', 'ck_ordenes_cantidad', 'CHECK (cantidad > 0)');
 
 -- Estados de un plato del pedido: 1 En preparación, 2 Preparado, 3 Entregado
 CREATE OR REPLACE FUNCTION trg_orden_nueva()
@@ -416,6 +419,7 @@ ALTER TABLE reservaciones ALTER COLUMN estado SET NOT NULL;
 ALTER TABLE reservaciones ALTER COLUMN cantidad SET NOT NULL;
 ALTER TABLE reservaciones ALTER COLUMN cliente_id SET NOT NULL;
 SELECT pg_temp.agregar_restriccion('reservaciones', 'ck_reservaciones_estado', 'CHECK (estado IN (0, 1, 2, 3))');
+SELECT pg_temp.agregar_restriccion('reservaciones', 'ck_reservaciones_cantidad', 'CHECK (cantidad > 0)');
 
 UPDATE horarios SET duracion = INTERVAL '2 hours' WHERE duracion IS NULL;
 ALTER TABLE horarios ALTER COLUMN duracion SET DEFAULT INTERVAL '2 hours';

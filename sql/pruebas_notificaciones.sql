@@ -7,9 +7,17 @@
 -- 2. Reserva a 15 min genera notificación; reserva a 3 horas NO.
 -- 3. Ejecución repetida (idempotencia) sin generar duplicados.
 -- 4. Entrega del pedido (estado 3) marca la notificación como leída automáticamente.
+--
+-- Todo se deshace al final (ROLLBACK), así que puede repetirse.
+-- Uso: psql -d restaurante -f pruebas_notificaciones.sql
 -- ====================================================================
 
 \pset footer off
+BEGIN;
+SET search_path = public;
+-- Los triggers diferibles se verifican en cada sentencia durante las pruebas
+SET CONSTRAINTS ALL IMMEDIATE;
+
 \echo '===================================================================='
 \echo 'PRUEBA 1: PEDIDO CON VARIOS ÍTEMS'
 \echo 'La notificación al mesero solo debe crearse al terminar el ÚLTIMO ítem'
@@ -23,13 +31,15 @@ DECLARE
     v_cliente_id INT;
     v_mesero_id INT;
     v_notif_count INT;
+    v_cocinero1 INT;
+    v_cocinero2 INT;
 BEGIN
     SELECT id INTO v_cliente_id FROM usuarios WHERE nombre = 'Julian Herrera' LIMIT 1;
     -- Mesero Carlos Mendoza (id 2)
     SELECT id INTO v_mesero_id FROM usuarios WHERE nombre = 'Carlos Mendoza' LIMIT 1;
 
     -- Crear nuevo pedido con 2 platos
-    INSERT INTO pedidos (cliente_id, mesero_id) VALUES (v_cliente_id, v_mesero_id) RETURNING id INTO v_pedido_id;
+    INSERT INTO pedidos (cliente_id, mesero_id, mesa_id) VALUES (v_cliente_id, v_mesero_id, (SELECT MIN(id) FROM mesas)) RETURNING id INTO v_pedido_id;
 
     INSERT INTO ordenes (plato_id, pedido_id, estado, cantidad, solicitado)
     SELECT id, v_pedido_id, 1, 1, CURRENT_TIMESTAMP FROM platos WHERE nombre = 'Pollo a la parrilla'
@@ -41,12 +51,20 @@ BEGIN
 
     RAISE NOTICE 'Pedido #% creado con órdenes: #% y #% (ambas en preparación).', v_pedido_id, v_orden1_id, v_orden2_id;
 
+    -- Cada plato lo toma un cocinero autorizado para prepararlo (regla 3.5)
+    SELECT a.cocinero_id INTO v_cocinero1 FROM autorizaciones a JOIN ordenes o ON o.plato_id = a.plato_id
+    WHERE o.id = v_orden1_id ORDER BY a.cocinero_id LIMIT 1;
+    SELECT a.cocinero_id INTO v_cocinero2 FROM autorizaciones a JOIN ordenes o ON o.plato_id = a.plato_id
+    WHERE o.id = v_orden2_id ORDER BY a.cocinero_id LIMIT 1;
+    PERFORM tomar_orden(v_orden1_id, v_cocinero1);
+    PERFORM tomar_orden(v_orden2_id, v_cocinero2);
+
     -- Paso 1: Ningún ítem preparado
     SELECT COUNT(*) INTO v_notif_count FROM notificaciones WHERE tipo = 'PEDIDO_LISTO' AND referencia_id = v_pedido_id;
     RAISE NOTICE '-> Estado inicial: % notificaciones encontradas (esperado: 0).', v_notif_count;
 
     -- Paso 2: Se prepara SOLO el ítem 1 (Pollo)
-    UPDATE ordenes SET estado = 2 WHERE id = v_orden1_id;
+    PERFORM marcar_orden_preparada(v_orden1_id, v_cocinero1);
     SELECT COUNT(*) INTO v_notif_count FROM notificaciones WHERE tipo = 'PEDIDO_LISTO' AND referencia_id = v_pedido_id;
     IF v_notif_count = 0 THEN
         RAISE NOTICE '-> Solo ítem 1 preparado: % notificaciones (CORRECTO: falta el ítem 2).', v_notif_count;
@@ -55,7 +73,7 @@ BEGIN
     END IF;
 
     -- Paso 3: Se prepara el ítem 2 (Tiramisú) -> ¡Ahora sí están TODOS preparados!
-    UPDATE ordenes SET estado = 2 WHERE id = v_orden2_id;
+    PERFORM marcar_orden_preparada(v_orden2_id, v_cocinero2);
     SELECT COUNT(*) INTO v_notif_count FROM notificaciones WHERE tipo = 'PEDIDO_LISTO' AND referencia_id = v_pedido_id;
     IF v_notif_count = 1 THEN
         RAISE NOTICE '-> Ítem 2 preparado (todos listos): % notificación creada para mesero % (CORRECTO).', v_notif_count, v_mesero_id;
@@ -83,23 +101,26 @@ DECLARE
     v_reserva_lejana INT;
     v_mesa1_id INT;
     v_mesa2_id INT;
+    v_inicio_cercana TIMESTAMP := date_trunc('minute', LOCALTIMESTAMP + INTERVAL '15 minutes');
+    v_inicio_lejana TIMESTAMP := date_trunc('minute', LOCALTIMESTAMP + INTERVAL '3 hours');
     v_creadas INT;
     v_notif_cercana INT;
     v_notif_lejana INT;
 BEGIN
-    SELECT id INTO v_cliente_id FROM usuarios WHERE nombre = 'Mariana Lopez' LIMIT 1;
-    SELECT id INTO v_mesa1_id FROM mesas ORDER BY id LIMIT 1;
-    SELECT id INTO v_mesa2_id FROM mesas ORDER BY id DESC LIMIT 1;
+    SELECT id INTO v_cliente_id FROM usuarios WHERE nombre = 'Julian Herrera' LIMIT 1;
+    -- Mesas libres en cada horario (no se cruzan con reservas existentes)
+    SELECT d.mesa_id INTO v_mesa1_id FROM fn_mesas_disponibles(v_inicio_cercana, 2) d LIMIT 1;
+    SELECT d.mesa_id INTO v_mesa2_id FROM fn_mesas_disponibles(v_inicio_lejana, 4) d LIMIT 1;
 
     -- Reserva A: Empieza en 15 minutos (DENTRO del rango de 30 minutos)
     INSERT INTO reservaciones (cliente_id, cantidad, estado) VALUES (v_cliente_id, 2, 1) RETURNING id INTO v_reserva_cercana;
     INSERT INTO horarios (mesa_id, reservacion_id, inicio, duracion)
-    VALUES (v_mesa1_id, v_reserva_cercana, CURRENT_TIMESTAMP + INTERVAL '15 minutes', INTERVAL '1 hour 30 minutes');
+    VALUES (v_mesa1_id, v_reserva_cercana, v_inicio_cercana, INTERVAL '2 hours');
 
     -- Reserva B: Empieza en 3 horas (FUERA del rango de 30 minutos)
     INSERT INTO reservaciones (cliente_id, cantidad, estado) VALUES (v_cliente_id, 4, 1) RETURNING id INTO v_reserva_lejana;
     INSERT INTO horarios (mesa_id, reservacion_id, inicio, duracion)
-    VALUES (v_mesa2_id, v_reserva_lejana, CURRENT_TIMESTAMP + INTERVAL '3 hours', INTERVAL '1 hour 30 minutes');
+    VALUES (v_mesa2_id, v_reserva_lejana, v_inicio_lejana, INTERVAL '2 hours');
 
     RAISE NOTICE 'Reserva cercana #% (inicia en 15m) y lejana #% (inicia en 3h) creadas.', v_reserva_cercana, v_reserva_lejana;
 
@@ -133,7 +154,6 @@ ORDER BY id DESC LIMIT 1;
 DO $$
 DECLARE
     v_creadas_segunda_vez INT;
-    v_total_notif INT;
 BEGIN
     -- Ejecución 2 de reservas próximas: debe detectar que ya están notificadas y no duplicar
     v_creadas_segunda_vez := fn_notificar_reservas_proximas(30);
@@ -186,7 +206,9 @@ BEGIN
     END IF;
 END $$;
 
+ROLLBACK;
+
 \echo ''
 \echo '===================================================================='
-\echo 'FIN DE PRUEBAS DE NOTIFICACIONES'
+\echo 'FIN DE PRUEBAS DE NOTIFICACIONES (cambios deshechos con ROLLBACK)'
 \echo '===================================================================='

@@ -173,11 +173,11 @@ function fn_empleados($conn, $mensaje = "", $formulario = null)
     foreach ($usuarios->datos as $u) {
         $scr_editar = "window.open('?opcion=editar_empleado&usuario_id=" . $u['id'] . "', '_top');";
         $html .= "<tr" . ($u['activo'] == 't' ? "" : " class='INACTIVO'") . ">"
-               . "<td>" . htmlspecialchars($u['nombre']) . "</td>"
-               . "<td>" . htmlspecialchars($u['login']) . "</td>"
-               . "<td>" . htmlspecialchars($u['documento']) . "</td>"
-               . "<td>" . htmlspecialchars($u['telefono']) . "</td>"
-               . "<td>" . htmlspecialchars($u['roles']) . "</td>"
+               . "<td>" . htmlspecialchars((string) $u['nombre']) . "</td>"
+               . "<td>" . htmlspecialchars((string) $u['login']) . "</td>"
+               . "<td>" . htmlspecialchars((string) $u['documento']) . "</td>"
+               . "<td>" . htmlspecialchars((string) $u['telefono']) . "</td>"
+               . "<td>" . htmlspecialchars((string) $u['roles']) . "</td>"
                . "<td>" . $u['fecha_clave'] . "</td>"
                . "<td>" . ($u['activo'] == 't' ? "Activo" : "Inactivo") . "</td>"
                . "<td><button onClick=\"$scr_editar\">Modificar</button></td></tr>";

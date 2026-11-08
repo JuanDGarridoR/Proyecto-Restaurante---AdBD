@@ -47,7 +47,7 @@ BEGIN
     SELECT u.id INTO v_mesero_id FROM usuarios u JOIN actuaciones a ON a.usuario_id = u.id JOIN roles r ON r.id = a.rol_id WHERE r.nombre = 'Mesero' LIMIT 1;
 
     -- Crear orden de prueba de plato especial (Salmon al limon)
-    INSERT INTO pedidos (cliente_id, mesero_id) VALUES (v_cliente_id, v_mesero_id) RETURNING id INTO v_pedido_id;
+    INSERT INTO pedidos (cliente_id, mesero_id, mesa_id) VALUES (v_cliente_id, v_mesero_id, (SELECT MIN(id) FROM mesas)) RETURNING id INTO v_pedido_id;
     INSERT INTO ordenes (plato_id, pedido_id, estado, cantidad, solicitado)
     SELECT id, v_pedido_id, 1, 1, CURRENT_TIMESTAMP
     FROM platos WHERE nombre = 'Salmon al limon'
@@ -90,7 +90,7 @@ BEGIN
     SELECT u.id INTO v_mesero_id FROM usuarios u JOIN actuaciones a ON a.usuario_id = u.id JOIN roles r ON r.id = a.rol_id WHERE r.nombre = 'Mesero' LIMIT 1;
 
     -- Crear una orden fresca disponible
-    INSERT INTO pedidos (cliente_id, mesero_id) VALUES (v_cliente_id, v_mesero_id) RETURNING id INTO v_pedido_id;
+    INSERT INTO pedidos (cliente_id, mesero_id, mesa_id) VALUES (v_cliente_id, v_mesero_id, (SELECT MIN(id) FROM mesas)) RETURNING id INTO v_pedido_id;
     INSERT INTO ordenes (plato_id, pedido_id, estado, cantidad, solicitado)
     SELECT id, v_pedido_id, 1, 1, CURRENT_TIMESTAMP
     FROM platos WHERE nombre = 'Pollo a la parrilla'
@@ -131,7 +131,7 @@ BEGIN
     SELECT u.id INTO v_mesero_id FROM usuarios u JOIN actuaciones a ON a.usuario_id = u.id JOIN roles r ON r.id = a.rol_id WHERE r.nombre = 'Mesero' LIMIT 1;
 
     -- Crear orden de prueba (Hamburguesa de la casa)
-    INSERT INTO pedidos (cliente_id, mesero_id) VALUES (v_cliente_id, v_mesero_id) RETURNING id INTO v_pedido_id;
+    INSERT INTO pedidos (cliente_id, mesero_id, mesa_id) VALUES (v_cliente_id, v_mesero_id, (SELECT MIN(id) FROM mesas)) RETURNING id INTO v_pedido_id;
     INSERT INTO ordenes (plato_id, pedido_id, estado, cantidad, solicitado)
     SELECT id, v_pedido_id, 1, 1, CURRENT_TIMESTAMP
     FROM platos WHERE nombre = 'Hamburguesa de la casa'
