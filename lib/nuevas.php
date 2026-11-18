@@ -150,24 +150,31 @@ function fn_eliminar_mesa($conn) {
 
 function fn_buscar_platos($conn) {
     $html = fn_boton_menu_principal();
-    $html .= "<h2>Platos con precio máximo</h2>";
+    $html .= "<h2>Platos por precio</h2>";
 
-    if (!isset($_REQUEST['precio_max'])) {
+    if (!isset($_REQUEST['precio'])) {
         $html .= "<form method='get'>"
                . "<input type='hidden' name='opcion' value='buscar_platos'>"
-               . "<label>Muestra los platos que cuestan igual o menos que: $</label>"
-               . "<input type='number' name='precio_max'>"
+               . "<label>Filtrar por precio:</label> "
+               . "<select name='tipo'>"
+               . "<option value='max'>Máximo (cuestan igual o menos que)</option>"
+               . "<option value='min'>Mínimo (cuestan igual o más que)</option>"
+               . "</select> "
+               . "<label>$</label>"
+               . "<input type='number' name='precio' min='0' required>"
                . "<button type='submit'>Ver platos</button>"
                . "</form>";
     } else {
-        $precio = intval($_REQUEST['precio_max']);
-        $sentencia = "SELECT nombre, descripcion, precio FROM platos WHERE activo AND precio <= $precio ORDER BY precio";
+        $precio = intval($_REQUEST['precio']);
+        $es_minimo = (isset($_REQUEST['tipo']) && $_REQUEST['tipo'] == 'min');
+        $operador = $es_minimo ? '>=' : '<=';
+        $sentencia = "SELECT nombre, descripcion, precio FROM platos WHERE activo AND precio $operador $precio ORDER BY precio";
         $resultado = procesar_query($sentencia, $conn);
 
-        $html .= "<p>Platos de hasta $" . $precio . "</p>";
+        $html .= $es_minimo ? "<p>Platos desde $" . $precio . "</p>" : "<p>Platos de hasta $" . $precio . "</p>";
 
         if ($resultado->cantidad == 0) {
-            $html .= "<p>No hay platos con ese precio o menos</p>";
+            $html .= $es_minimo ? "<p>No hay platos con ese precio o más</p>" : "<p>No hay platos con ese precio o menos</p>";
         } else {
             $html .= "<table><tr><th>Nombre</th><th>Descripcion</th><th>Precio</th></tr>";
             foreach ($resultado->datos as $plato) {
